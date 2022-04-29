@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -69,12 +70,15 @@ func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
 		return ctx.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	rarity := item["rarity"].String()
+	rarity := item["rarity"].Int()
 	iconId := item["iconId"].String()
 	// get item info ends
 
 	// get rarity image
-	spriteItemRXImageBytes, err := os.ReadFile(fmt.Sprintf("./item/sprite_item_r%s.png", rarity))
+	rarityWithOffset := rarity + 1
+	rarityString := strconv.Itoa(int(rarityWithOffset))
+
+	spriteItemRXImageBytes, err := os.ReadFile(fmt.Sprintf("./item/sprite_item_r%s.png",rarityString ))
 	if err != nil {
 		return err
 	}
