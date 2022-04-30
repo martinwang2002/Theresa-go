@@ -13,13 +13,34 @@ import (
 	"github.com/rclone/rclone/fs/config/configstruct"
 )
 
-func getBackgroundContext() context.Context {
+type AkAbFs struct {
+	akAbFsContext context.Context
+	googleDriveFs fs.Fs
+	localFs       fs.Fs
+}
+
+func NewAkAbFs() *AkAbFs {
+	akAbFsContext := GetBackgroundContext()
+	googleDriveFs, err := GetGoogleDriveFs(akAbFsContext)
+	if err != nil {
+		panic(err)
+	}
+	localFs, err := GetLocalFs(akAbFsContext)
+	if err != nil {
+		panic(err)
+	}
+	return &AkAbFs{
+		akAbFsContext: akAbFsContext,
+		googleDriveFs: googleDriveFs,
+		localFs:       localFs,
+	}
+}
+
+func GetBackgroundContext() context.Context {
 	return context.Background()
 }
 
-func getGoogleDriveFs() (fs.Fs, error) {
-	backgroundContext := getBackgroundContext()
-
+func GetGoogleDriveFs(backgroundContext context.Context) (fs.Fs, error) {
 	config := configmap.Simple{}
 	driveOptions := new(backendDrive.Options)
 	configstruct.Set(config, driveOptions)
@@ -49,10 +70,9 @@ func getGoogleDriveFs() (fs.Fs, error) {
 	return fs, nil
 }
 
-func getLocalFs() (fs.Fs, error) {
+func GetLocalFs(backgroundContext context.Context) (fs.Fs, error) {
 	config := configmap.Simple{}
 
-	backgroundContext := getBackgroundContext()
 	fs, err := localDrive.NewFs(backgroundContext, "Local", "./AK_AB_DATA/", config)
 
 	if err != nil {
@@ -62,18 +82,12 @@ func getLocalFs() (fs.Fs, error) {
 	return fs, nil
 }
 
-func list(path string) (fs.DirEntries, error) {
-	googleDriveFs, err := getGoogleDriveFs()
-	if err != nil {
-		return nil, err
-	}
-	localFs, err := getLocalFs()
-	if err != nil {
-		return nil, err
-	}
+func (akAbFs *AkAbFs) list(path string) (fs.DirEntries, error) {
+	googleDriveFs := akAbFs.googleDriveFs
+	localFs := akAbFs.localFs
 
-	localEntries, localErr := localFs.List(getBackgroundContext(), path)
-	googleDriveEntries, googleDriveErr := googleDriveFs.List(getBackgroundContext(), path)
+	localEntries, localErr := localFs.List(akAbFs.akAbFsContext, path)
+	googleDriveEntries, googleDriveErr := googleDriveFs.List(akAbFs.akAbFsContext, path)
 
 	// Raise error if both errors are not nil for listing in local drive and google drive
 	if localErr != nil && googleDriveErr != nil {
@@ -115,8 +129,8 @@ type JsonDirEntry struct {
 	IsDir bool   `json:"isDir"`
 }
 
-func List(path string) (JsonDirEntries, error) {
-	entries, err := list(path)
+func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
+	entries, err := akAbFs.list(path)
 	if err != nil {
 		return nil, err
 	}
@@ -141,39 +155,34 @@ func List(path string) (JsonDirEntries, error) {
 	return jsonEntries, nil
 }
 
-func localNewObject(path string) (fs.Object, error) {
-	localFs, err := getLocalFs()
-	if err != nil {
-		return nil, err
-	}
+func (akAbFs *AkAbFs) localNewObject(path string) (fs.Object, error) {
+	localFs := akAbFs.localFs
 
-	localNewObject, err := localFs.NewObject(getBackgroundContext(), path)
+	localNewObject, err := localFs.NewObject(akAbFs.akAbFsContext, path)
 	if err != nil {
 		return nil, err
 	}
 	return localNewObject, nil
 }
 
-func googleDriveNewObject(path string) (fs.Object, error) {
-	googleDriveFs, err := getGoogleDriveFs()
-	if err != nil {
-		return nil, err
-	}
-	googleDriveNewObject, err := googleDriveFs.NewObject(getBackgroundContext(), path)
+func (akAbFs *AkAbFs) googleDriveNewObject(path string) (fs.Object, error) {
+	googleDriveFs := akAbFs.googleDriveFs
+
+	googleDriveNewObject, err := googleDriveFs.NewObject(akAbFs.akAbFsContext, path)
 	if err != nil {
 		return nil, err
 	}
 	return googleDriveNewObject, nil
 }
 
-func NewObject(path string) (fs.Object, error) {
-	localNewObject, err := localNewObject(path)
+func (akAbFs *AkAbFs) NewObject(path string) (fs.Object, error) {
+	localNewObject, err := akAbFs.localNewObject(path)
 
 	if err == nil {
 		return localNewObject, nil
 	}
 
-	googleDriveNewObject, err := googleDriveNewObject(path)
+	googleDriveNewObject, err := akAbFs.googleDriveNewObject(path)
 	if err != nil {
 		return nil, err
 	}

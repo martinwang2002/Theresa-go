@@ -8,7 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/fx"
 
-	"theresa-go/internal/fs"
+	"theresa-go/internal/akAbFs"
 	"theresa-go/internal/server/versioning"
 	"theresa-go/internal/service/staticVersionService"
 	"theresa-go/internal/service/webpService"
@@ -16,6 +16,8 @@ import (
 
 type StaticMissingTileController struct {
 	fx.In
+	AkAbFs *akAbFs.AkAbFs
+	StaticVersionService *staticVersionService.StaticVersionService
 }
 
 func RegisterStaticMissingTileController(appStaticApiV0AK *versioning.AppStaticApiV0AK, c StaticMissingTileController) error {
@@ -25,11 +27,11 @@ func RegisterStaticMissingTileController(appStaticApiV0AK *versioning.AppStaticA
 
 func (c *StaticMissingTileController) MissingTile(ctx *fiber.Ctx) error {
 
-	staticProdVersionPath := staticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
 
 	missingTilePath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/arts/[pack]common/missing.png")
 
-	newObject, err := akAbFs.NewObject(missingTilePath)
+	newObject, err := c.AkAbFs.NewObject(missingTilePath)
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}

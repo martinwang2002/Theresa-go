@@ -6,8 +6,18 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"theresa-go/internal/fs"
+	"theresa-go/internal/akAbFs"
 )
+
+type AkVersionService struct {
+	AkAbFs *akAbFs.AkAbFs
+}
+
+func NewAkVersionService(akAbFs *akAbFs.AkAbFs) *AkVersionService {
+	return &AkVersionService{
+		AkAbFs: akAbFs,
+	}
+}
 
 type VersionFileJson struct {
 	ResVersion    string `json:"resVersion"`
@@ -15,11 +25,11 @@ type VersionFileJson struct {
 	AkAbHash      string `json:"_AK_AB_HASH"`
 }
 
-func LatestVersion(server string, platform string) (VersionFileJson, error) {
+func (s *AkVersionService) LatestVersion(server string, platform string) (VersionFileJson, error) {
 	var versionFileJson VersionFileJson
 
 	// load version file
-	versionFile, err := akAbFs.NewObject(fmt.Sprintf("AK/%s/%s/version.json", server, platform))
+	versionFile, err := s.AkAbFs.NewObject(fmt.Sprintf("AK/%s/%s/version.json", server, platform))
 	if err != nil {
 		return versionFileJson, err
 	}
@@ -37,9 +47,9 @@ func LatestVersion(server string, platform string) (VersionFileJson, error) {
 	return versionFileJson, nil
 }
 
-func RealLatestVersion(server string, platform string, resVersion string) string {
+func (s *AkVersionService) RealLatestVersion(server string, platform string, resVersion string) string {
 	if resVersion == "latest" {
-		latestVersion, err := LatestVersion(server, platform)
+		latestVersion, err := s.LatestVersion(server, platform)
 		if err != nil {
 			panic(err)
 		}
@@ -48,9 +58,9 @@ func RealLatestVersion(server string, platform string, resVersion string) string
 	return resVersion
 }
 
-func RealLatestVersionPath(server string, platform string, resVersion string) string {
+func (s *AkVersionService) RealLatestVersionPath(server string, platform string, resVersion string) string {
 	if resVersion == "latest" {
-		latestVersion, err := LatestVersion(server, platform)
+		latestVersion, err := s.LatestVersion(server, platform)
 		if err != nil {
 			panic(err)
 		}

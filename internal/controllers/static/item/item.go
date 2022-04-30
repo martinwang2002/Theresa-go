@@ -14,7 +14,7 @@ import (
 	"github.com/tidwall/gjson"
 	"go.uber.org/fx"
 
-	"theresa-go/internal/fs"
+	"theresa-go/internal/akAbFs"
 	"theresa-go/internal/server/versioning"
 	"theresa-go/internal/service/staticVersionService"
 	"theresa-go/internal/service/webpService"
@@ -22,6 +22,8 @@ import (
 
 type StaticItemController struct {
 	fx.In
+	AkAbFs *akAbFs.AkAbFs
+	StaticVersionService *staticVersionService.StaticVersionService
 }
 
 func RegisterStaticItemController(appStaticApiV0AK *versioning.AppStaticApiV0AK, c StaticItemController) error {
@@ -31,12 +33,12 @@ func RegisterStaticItemController(appStaticApiV0AK *versioning.AppStaticApiV0AK,
 
 func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
 
-	staticProdVersionPath := staticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
 
 	// get item info starts
 	itemTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/item_table.json")
 
-	itemTableJsonObject, err := akAbFs.NewObject(itemTableJsonPath)
+	itemTableJsonObject, err := c.AkAbFs.NewObject(itemTableJsonPath)
 
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
@@ -86,7 +88,7 @@ func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
 	// get item image
 	itemPath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/arts/items/icons/%s.png", strings.ToLower(iconId))
 
-	itemObject, err := akAbFs.NewObject(itemPath)
+	itemObject, err := c.AkAbFs.NewObject(itemPath)
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}

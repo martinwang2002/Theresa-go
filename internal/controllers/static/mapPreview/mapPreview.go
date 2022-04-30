@@ -10,7 +10,7 @@ import (
 	"github.com/h2non/bimg"
 	"go.uber.org/fx"
 
-	"theresa-go/internal/fs"
+	"theresa-go/internal/akAbFs"
 	"theresa-go/internal/server/versioning"
 	"theresa-go/internal/service/staticVersionService"
 	"theresa-go/internal/service/webpService"
@@ -18,6 +18,8 @@ import (
 
 type StaticMapPreviewController struct {
 	fx.In
+	AkAbFs *akAbFs.AkAbFs
+	StaticVersionService *staticVersionService.StaticVersionService
 }
 
 func RegisterStaticMapPreviewController(appStaticApiV0AK *versioning.AppStaticApiV0AK, c StaticMapPreviewController) error {
@@ -59,11 +61,11 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 		return ctx.SendStatus(fiber.StatusBadRequest)
 	}
 
-	staticProdVersionPath := staticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
 
 	mapPreviewPath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/arts/ui/stage/mappreviews/%s.png", ctx.Params("mapId"))
 
-	mapPreviewObject, err := akAbFs.NewObject(mapPreviewPath)
+	mapPreviewObject, err := c.AkAbFs.NewObject(mapPreviewPath)
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}

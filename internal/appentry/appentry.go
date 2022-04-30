@@ -3,6 +3,7 @@ package appentry
 import (
 	"go.uber.org/fx"
 
+	"theresa-go/internal/akAbFs"
 	"theresa-go/internal/controllers/s3"
 	"theresa-go/internal/controllers/static/item"
 	"theresa-go/internal/controllers/static/mapPreview"
@@ -10,14 +11,22 @@ import (
 	"theresa-go/internal/controllers/static/site"
 	"theresa-go/internal/server/httpserver"
 	"theresa-go/internal/server/versioning"
+	"theresa-go/internal/service/akVersionService"
+	"theresa-go/internal/service/staticVersionService"
 )
 
 func ProvideOptions(includeSwagger bool) []fx.Option {
 	opts := []fx.Option{
 		fx.Provide(
+			// fiber.App
 			httpserver.CreateHttpServer,
 			versioning.CreateS3VersioningEndpoints,
 			versioning.CreateStaticVersioningEndpoints,
+			// akAbFs
+			akAbFs.NewAkAbFs,
+			// service
+			akVersionService.NewAkVersionService,
+			staticVersionService.NewStaticVersionService,
 		),
 		fx.Invoke(
 			// s3

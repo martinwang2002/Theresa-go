@@ -8,13 +8,15 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"go.uber.org/fx"
 
-	"theresa-go/internal/fs"
+	"theresa-go/internal/akAbFs"
 	"theresa-go/internal/server/versioning"
 	"theresa-go/internal/service/akVersionService"
 )
 
 type S3AkController struct {
 	fx.In
+	AkAbFs *akAbFs.AkAbFs
+	AkVersionService *akVersionService.AkVersionService
 }
 
 func RegisterS3AkController(appS3ApiV0AK *versioning.AppS3ApiV0AK, c S3AkController) error {
@@ -30,7 +32,7 @@ func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
 	// get file path
 	path := fmt.Sprintf(
 		"%s/%s",
-		akVersionService.RealLatestVersionPath(ctx.Params("server"), ctx.Params("platform"), ctx.Params("resVersion")),
+		c.AkVersionService.RealLatestVersionPath(ctx.Params("server"), ctx.Params("platform"), ctx.Params("resVersion")),
 		ctx.Params("*"),
 	)
 
@@ -39,13 +41,13 @@ func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
 	}
 
 	// try list directory first
-	entries, err := akAbFs.List(path)
+	entries, err := c.AkAbFs.List(path)
 
 	if err == nil {
 		return ctx.JSON(entries)
 	} else {
 		// respond with file
-		newObject, err := akAbFs.NewObject(path)
+		newObject, err := c.AkAbFs.NewObject(path)
 		if err != nil {
 			return ctx.SendStatus(fiber.StatusNotFound)
 		}
@@ -58,7 +60,7 @@ func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
 }
 
 func (c *S3AkController) LatestVersion(ctx *fiber.Ctx) error {
-	versionFileJson, err := akVersionService.LatestVersion(ctx.Params("server"), ctx.Params("platform"))
+	versionFileJson, err := c.AkVersionService.LatestVersion(ctx.Params("server"), ctx.Params("platform"))
 
 	if err != nil {
 		return err
@@ -69,7 +71,7 @@ func (c *S3AkController) LatestVersion(ctx *fiber.Ctx) error {
 }
 
 func (c *S3AkController) Versions(ctx *fiber.Ctx) error {
-	entries, err := akAbFs.List(fmt.Sprintf("AK/%s/%s/assets", ctx.Params("server"), ctx.Params("platform")))
+	entries, err := c.AkAbFs.List(fmt.Sprintf("AK/%s/%s/assets", ctx.Params("server"), ctx.Params("platform")))
 	if err != nil {
 		return err
 	}

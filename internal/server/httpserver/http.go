@@ -44,7 +44,6 @@ func CreateHttpServer() (*fiber.App, *AppS3, *AppStatic) {
 
 	appStatic.Get("/", func(ctx *fiber.Ctx) error {
 		return ctx.SendStatus(fiber.StatusNoContent)
-		// return c.SendString("Welcome to static assets for Theresa.wiki.")
 	})
 
 	// Server
