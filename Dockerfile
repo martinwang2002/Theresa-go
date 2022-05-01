@@ -15,8 +15,6 @@ FROM alpine:latest
 RUN apk update && apk --no-cache add \
     ca-certificates \
     vips-dev
-# RUN addgroup -S k8s-example && adduser -S k8s-example -G k8s-example
-# USER k8s-example
 WORKDIR /app
 COPY --from=builder /app ./
 EXPOSE 8000
