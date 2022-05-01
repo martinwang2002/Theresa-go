@@ -17,7 +17,6 @@ import (
 	"theresa-go/internal/akAbFs"
 	"theresa-go/internal/server/versioning"
 	"theresa-go/internal/service/staticVersionService"
-	"theresa-go/internal/service/webpService"
 )
 
 type StaticItemController struct {
@@ -125,17 +124,14 @@ func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
 			Buf:     itemImageBuf.Bytes(),
 			Opacity: 1,
 		},
+		Quality: 100,
+		Type:    bimg.WEBP,
 	})
-	if err != nil {
-		return err
-	}
-
-	encodedWebpBuffer, err := webpService.EncodeWebp(itemImageWithBackGround, 100)
 	if err != nil {
 		return err
 	}
 
 	ctx.Set("Content-Type", "image/webp")
 
-	return ctx.SendStream(bytes.NewReader(encodedWebpBuffer))
+	return ctx.SendStream(bytes.NewReader(itemImageWithBackGround))
 }

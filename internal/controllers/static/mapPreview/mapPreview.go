@@ -13,12 +13,11 @@ import (
 	"theresa-go/internal/akAbFs"
 	"theresa-go/internal/server/versioning"
 	"theresa-go/internal/service/staticVersionService"
-	"theresa-go/internal/service/webpService"
 )
 
 type StaticMapPreviewController struct {
 	fx.In
-	AkAbFs *akAbFs.AkAbFs
+	AkAbFs               *akAbFs.AkAbFs
 	StaticVersionService *staticVersionService.StaticVersionService
 }
 
@@ -80,15 +79,11 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 
 	// resize image to 16:9 ratio
 	resizedImage, err := bimg.NewImage(buf.Bytes()).Process(bimg.Options{
-		Width:  width,
-		Height: (width * 9 / 16),
+		Width:   width,
+		Height:  (width * 9 / 16),
+		Quality: quality,
+		Type:    bimg.WEBP,
 	})
-
-	if err != nil {
-		return err
-	}
-
-	encodedWebpBuffer, err := webpService.EncodeWebp(resizedImage, quality)
 
 	if err != nil {
 		return err
@@ -96,5 +91,5 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 
 	ctx.Set("Content-Type", "image/webp")
 
-	return ctx.SendStream(bytes.NewReader(encodedWebpBuffer))
+	return ctx.SendStream(bytes.NewReader(resizedImage))
 }
