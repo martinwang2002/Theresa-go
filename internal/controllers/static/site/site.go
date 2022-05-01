@@ -12,5 +12,6 @@ type StaticSiteController struct {
 
 func RegisterStaticSiteController(appStatic *httpserver.AppStatic, c StaticSiteController) error {
 	appStatic.Get("/robots.txt", c.robotsTxt)
+	appStatic.Get("/favicon.ico", c.favicon)
 	return nil
 }
