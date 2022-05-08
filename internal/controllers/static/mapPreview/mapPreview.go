@@ -51,12 +51,12 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 	}
 
 	width, err := strconv.Atoi(ctx.Params("width"))
-	if err != nil && !allowedImageWidth[width] {
+	if err != nil || !allowedImageWidth[width] {
 		return ctx.SendStatus(fiber.StatusBadRequest)
 	}
 
 	quality, err := strconv.Atoi(ctx.Params("quality"))
-	if err != nil && !allowedImageQuality[quality] {
+	if err != nil || !allowedImageQuality[quality] {
 		return ctx.SendStatus(fiber.StatusBadRequest)
 	}
 
