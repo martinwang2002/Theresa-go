@@ -3,6 +3,7 @@ package s3AkAbController
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"sort"
 
 	"github.com/gofiber/fiber/v2"
@@ -15,7 +16,7 @@ import (
 
 type S3AkController struct {
 	fx.In
-	AkAbFs *akAbFs.AkAbFs
+	AkAbFs           *akAbFs.AkAbFs
 	AkVersionService *akVersionService.AkVersionService
 }
 
@@ -29,11 +30,17 @@ func RegisterS3AkController(appS3ApiV0AK *versioning.AppS3ApiV0AK, c S3AkControl
 }
 
 func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
+	urlPath, err := url.QueryUnescape(ctx.Params("*"))
+
+	if err != nil {
+		return ctx.SendStatus(fiber.StatusBadRequest)
+	}
+
 	// get file path
 	path := fmt.Sprintf(
 		"%s/%s",
 		c.AkVersionService.RealLatestVersionPath(ctx.Params("server"), ctx.Params("platform"), ctx.Params("resVersion")),
-		ctx.Params("*"),
+		urlPath,
 	)
 
 	if path[len(path)-1] == '/' {
