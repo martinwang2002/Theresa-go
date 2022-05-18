@@ -8,3 +8,6 @@ AK_AB_DATA
 .env
 
 vendor
+
+# air confi should be local or link to .air.linux.conf or .air.windows.conf
+.air.conf
