@@ -6,6 +6,7 @@ import (
 	"theresa-go/internal/akAbFs"
 	"theresa-go/internal/controllers/s3"
 	"theresa-go/internal/controllers/static/item"
+	"theresa-go/internal/controllers/static/map3d"
 	"theresa-go/internal/controllers/static/mapPreview"
 	"theresa-go/internal/controllers/static/missingTile"
 	"theresa-go/internal/controllers/static/site"
@@ -33,6 +34,7 @@ func ProvideOptions(includeSwagger bool) []fx.Option {
 			s3AkAbController.RegisterS3AkController,
 			// static
 			staticItemController.RegisterStaticItemController,
+			staticMap3DController.RegisterstaticMap3DController,
 			staticMapPreviewController.RegisterStaticMapPreviewController,
 			staticMissingTileController.RegisterStaticMissingTileController,
 			staticSiteController.RegisterStaticSiteController,

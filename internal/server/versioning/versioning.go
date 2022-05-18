@@ -2,6 +2,7 @@ package versioning
 
 import (
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 
 	"theresa-go/internal/server/httpserver"
 )
@@ -32,6 +33,8 @@ func CreateS3VersioningEndpoints(appS3 *httpserver.AppS3) (*AppS3ApiV0, *AppS3Ap
 
 func CreateStaticVersioningEndpoints(appStatic *httpserver.AppStatic) (*AppStaticApiV0, *AppStaticApiV0AK) {
 	appStaticApiV0 := appStatic.Group("/api/v0")
+
+	appStaticApiV0.Use(cors.New())
 
 	appStaticApiV0AK := appStaticApiV0.Group("/AK/:server/:platform")
 
