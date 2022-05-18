@@ -3,6 +3,7 @@ package akAbFs
 import (
 	"context"
 	"encoding/json"
+	"io/ioutil"
 	"os"
 	pathLib "path"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/config/configmap"
 	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/tidwall/gjson"
 )
 
 type AkAbFs struct {
@@ -187,4 +189,27 @@ func (akAbFs *AkAbFs) NewObject(path string) (fs.Object, error) {
 		return nil, err
 	}
 	return googleDriveNewObject, nil
+}
+
+func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
+	Object, err := akAbFs.NewObject(path)
+
+	if err != nil {
+		return nil, err
+	}
+
+	ObjectIoReader, err := Object.Open(context.Background())
+
+	if err != nil {
+		return nil, err
+	}
+
+	ObjectIoReaderBytes, err := ioutil.ReadAll(ObjectIoReader)
+	if err != nil {
+		return nil, err
+	}
+
+	gjsonResult := gjson.ParseBytes(ObjectIoReaderBytes)
+
+	return &gjsonResult, nil
 }

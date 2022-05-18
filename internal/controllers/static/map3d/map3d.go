@@ -3,11 +3,9 @@ package staticMap3DController
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/tidwall/gjson"
 	"go.uber.org/fx"
 
 	"theresa-go/internal/akAbFs"
@@ -29,8 +27,8 @@ func RegisterstaticMap3DController(appStaticApiV0AK *versioning.AppStaticApiV0AK
 }
 
 type Obj struct {
-	Obj      string `json:"obj"`
-	Lightmap string `json:"lightmap"`
+	Obj             string           `json:"obj"`
+	Lightmap        string           `json:"lightmap"`
 	LightmapConfigs []LightmapConfig `json:"lightmapConfigs"`
 }
 
@@ -65,25 +63,15 @@ func (c *StaticMap3DController) lightmapConfig(staticProdVersionPath string, low
 		return nil, fmt.Errorf("no sceneAbLockPath found")
 	}
 
-	sceneAbLockObject, err := c.AkAbFs.NewObject(sceneAbDirectoryPath + "/" + sceneAbLockFileName)
+	sceneAbLockPath := sceneAbDirectoryPath + "/" + sceneAbLockFileName
+
+	sceneAbLockJsonResult, err := c.AkAbFs.NewJsonObject(sceneAbLockPath)
 
 	if err != nil {
 		return nil, err
 	}
 
-	sceneAbLockObjectIoReader, err := sceneAbLockObject.Open(context.Background())
-
-	if err != nil {
-		return nil, err
-	}
-
-	sceneAbLockJsonBytes, err := ioutil.ReadAll(sceneAbLockObjectIoReader)
-	if err != nil {
-		return nil, err
-	}
-
-	sceneAbLockJson := gjson.ParseBytes(sceneAbLockJsonBytes).Map()
-
+	sceneAbLockJson := sceneAbLockJsonResult.Map()
 
 	if !sceneAbLockJson["files"].Exists() {
 		return nil, fmt.Errorf("no files field in .lock file found")
@@ -100,41 +88,26 @@ func (c *StaticMap3DController) lightmapConfig(staticProdVersionPath string, low
 		}
 	}
 
-
-	lightmapConfigs := make([]LightmapConfig, len(meshRendererFiles) -1)
+	lightmapConfigs := make([]LightmapConfig, len(meshRendererFiles)-1)
 
 	for _, meshRendererFile := range meshRendererFiles {
+		meshRendererPath := staticProdVersionPath + "/" + meshRendererFile
 
-
-		meshRendererFileObject, err := c.AkAbFs.NewObject(staticProdVersionPath + "/" + meshRendererFile)
-
-		if err != nil {
-			return nil, err
-		}
-
-		meshRendererFileObjectIoReader, err := meshRendererFileObject.Open(context.Background())
+		meshRendererFileJsonResult, err := c.AkAbFs.NewJsonObject(meshRendererPath)
 
 		if err != nil {
 			return nil, err
 		}
 
-		meshRendererFileJsonBytes, err := ioutil.ReadAll(meshRendererFileObjectIoReader)
-		if err != nil {
-			return nil, err
-		}
+		meshRendererFileJson := meshRendererFileJsonResult.Map()
 
-		meshRendererFileJson := gjson.ParseBytes(meshRendererFileJsonBytes).Map()
-
-
-
-
-		if !meshRendererFileJson["m_StaticBatchInfo"].Exists()  || !meshRendererFileJson["m_StaticBatchInfo"].Map()["firstSubMesh"].Exists()  {
+		if !meshRendererFileJson["m_StaticBatchInfo"].Exists() || !meshRendererFileJson["m_StaticBatchInfo"].Map()["firstSubMesh"].Exists() {
 			return nil, fmt.Errorf("cannot find firstSubMesh")
 		}
 
-		firstSubMesh := meshRendererFileJson["m_StaticBatchInfo"].Map()["firstSubMesh"].Int() 
+		firstSubMesh := meshRendererFileJson["m_StaticBatchInfo"].Map()["firstSubMesh"].Int()
 
-		if !meshRendererFileJson["m_LightmapTilingOffset"].Exists()		{
+		if !meshRendererFileJson["m_LightmapTilingOffset"].Exists() {
 			return nil, fmt.Errorf("cannot find m_LightmapTilingOffset")
 		}
 
@@ -155,23 +128,13 @@ func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 
 	stageTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/stage_table.json")
 
-	stageTableJsonObject, err := c.AkAbFs.NewObject(stageTableJsonPath)
+	stageTableJsonResult, err := c.AkAbFs.NewJsonObject(stageTableJsonPath)
 	if err != nil {
 		return err
 	}
 
-	stageTableJsonObjectIoReader, err := stageTableJsonObject.Open(context.Background())
+	stageTableJson := stageTableJsonResult.Map()
 
-	if err != nil {
-		return err
-	}
-
-	stageTableJsonBytes, err := ioutil.ReadAll(stageTableJsonObjectIoReader)
-	if err != nil {
-		return err
-	}
-
-	stageTableJson := gjson.ParseBytes(stageTableJsonBytes).Map()
 	if !stageTableJson["stages"].Exists() {
 		return ctx.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -211,11 +174,11 @@ func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 	lightmapConfigs, err := c.lightmapConfig(staticProdVersionPath, lowerLevelId)
 	if err != nil {
 		return err
-	} 
-	
+	}
+
 	rootSceneObj := Obj{
-		Obj:      rootSceneObjUrl,
-		Lightmap: rootSceneLightmapUrl,
+		Obj:             rootSceneObjUrl,
+		Lightmap:        rootSceneLightmapUrl,
 		LightmapConfigs: lightmapConfigs,
 	}
 
@@ -231,23 +194,13 @@ func (c *StaticMap3DController) Map3DRootSceneObj(ctx *fiber.Ctx) error {
 
 	stageTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/stage_table.json")
 
-	stageTableJsonObject, err := c.AkAbFs.NewObject(stageTableJsonPath)
+	stageTableJsonResult, err := c.AkAbFs.NewJsonObject(stageTableJsonPath)
 	if err != nil {
 		return err
 	}
 
-	stageTableJsonObjectIoReader, err := stageTableJsonObject.Open(context.Background())
+	stageTableJson := stageTableJsonResult.Map()
 
-	if err != nil {
-		return err
-	}
-
-	stageTableJsonBytes, err := ioutil.ReadAll(stageTableJsonObjectIoReader)
-	if err != nil {
-		return err
-	}
-
-	stageTableJson := gjson.ParseBytes(stageTableJsonBytes).Map()
 	if !stageTableJson["stages"].Exists() {
 		return ctx.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -283,23 +236,13 @@ func (c *StaticMap3DController) Map3DRootSceneLightmap(ctx *fiber.Ctx) error {
 
 	stageTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/stage_table.json")
 
-	stageTableJsonObject, err := c.AkAbFs.NewObject(stageTableJsonPath)
+	stageTableJsonResult, err := c.AkAbFs.NewJsonObject(stageTableJsonPath)
 	if err != nil {
 		return err
 	}
 
-	stageTableJsonObjectIoReader, err := stageTableJsonObject.Open(context.Background())
+	stageTableJson := stageTableJsonResult.Map()
 
-	if err != nil {
-		return err
-	}
-
-	stageTableJsonBytes, err := ioutil.ReadAll(stageTableJsonObjectIoReader)
-	if err != nil {
-		return err
-	}
-
-	stageTableJson := gjson.ParseBytes(stageTableJsonBytes).Map()
 	if !stageTableJson["stages"].Exists() {
 		return ctx.SendStatus(fiber.StatusInternalServerError)
 	}

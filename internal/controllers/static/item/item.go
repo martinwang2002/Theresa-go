@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/h2non/bimg"
-	"github.com/tidwall/gjson"
 	"go.uber.org/fx"
 
 	"theresa-go/internal/akAbFs"
@@ -37,24 +35,13 @@ func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
 	// get item info starts
 	itemTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/item_table.json")
 
-	itemTableJsonObject, err := c.AkAbFs.NewObject(itemTableJsonPath)
+	itemTableJsonResult, err := c.AkAbFs.NewJsonObject(itemTableJsonPath)
 
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
 
-	itemTableJsonObjectIoReader, err := itemTableJsonObject.Open(context.Background())
-
-	if err != nil {
-		return err
-	}
-
-	itemTableJsonBytes, err := ioutil.ReadAll(itemTableJsonObjectIoReader)
-	if err != nil {
-		return err
-	}
-
-	itemTableJson := gjson.ParseBytes(itemTableJsonBytes).Map()
+	itemTableJson := itemTableJsonResult.Map()
 
 	if !itemTableJson["items"].Exists() {
 		return ctx.SendStatus(fiber.StatusInternalServerError)
