@@ -38,7 +38,9 @@ func CreateHttpServer() (*fiber.App, *AppS3, *AppStatic) {
 		return ctx.SendString("This is internal site for s3.")
 	})
 
-	appStatic := fiber.New()
+	appStatic := fiber.New(fiber.Config{
+		CaseSensitive: true,
+	})
 
 	SubdomainFibers["static"] = &SubdomainFiber{appStatic}
 
