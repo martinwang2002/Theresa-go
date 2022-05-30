@@ -1,6 +1,7 @@
 package staticMap3DController
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"theresa-go/internal/akAbFs"
 	"theresa-go/internal/server/versioning"
 	"theresa-go/internal/service/staticVersionService"
+	"theresa-go/internal/service/webpService"
 )
 
 type StaticMap3DController struct {
@@ -305,7 +307,7 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 					materials[materialPathId] = materialConfig
 				}
 
-				if color != (&Color{})  {
+				if color != (&Color{}) {
 					materialConfig.Color = color
 				}
 
@@ -491,7 +493,16 @@ func (c *StaticMap3DController) Map3DTextureMap(ctx *fiber.Ctx) error {
 		return err
 	}
 
-	ctx.Set("Content-Type", "image/png")
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(newObjectIoReader)
 
-	return ctx.SendStream(newObjectIoReader)
+	encodedWebpBuffer, err := webpService.EncodeWebp(buf.Bytes(), 100)
+
+	if err != nil {
+		return err
+	}
+
+	ctx.Set("Content-Type", "image/webp")
+
+	return ctx.SendStream(bytes.NewReader(encodedWebpBuffer))
 }
