@@ -163,6 +163,10 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 
 		firstSubMesh := meshRendererFileJson["m_StaticBatchInfo"].Map()["firstSubMesh"].Int()
 
+		if int(firstSubMesh) > len(meshConfigs) {
+			meshConfigs = append(meshConfigs, make([]MeshConfig, int(firstSubMesh)-len(meshConfigs)+1)...)
+		}
+
 		if !meshRendererFileJson["m_LightmapTilingOffset"].Exists() {
 			return nil, nil, fmt.Errorf("cannot find m_LightmapTilingOffset")
 		}
