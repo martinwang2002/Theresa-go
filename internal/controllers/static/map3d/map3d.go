@@ -36,10 +36,14 @@ type Obj struct {
 }
 
 type MaterialConfig struct {
-	Texture       string  `json:"texture"`
-	EmissionMap   *string `json:"emissionMap"`
-	Color         *Color  `json:"color"`
-	EmissionColor *Color  `json:"emissionColor"`
+	Map              string   `json:"map"`
+	BumpMap          *string  `json:"bumpMap"`
+	EmissionMap      *string  `json:"emissionMap"`
+	MetallicGlossMap *string  `json:"metallicGlossMap"`
+	BumpScale        *float64 `json:"bumpScale"`
+	Glossiness       *float64 `json:"glossiness"`
+	Color            *Color   `json:"color"`
+	EmissionColor    *Color   `json:"emissionColor"`
 }
 
 type Map3DConfig struct {
@@ -196,7 +200,15 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 		// texture
 		if _, exists := materials[materialPathId]; !exists {
 			texturePath := ""
+			bumpMapPath := ""
 			emissionMapPath := ""
+			metallicGlossMapPath := ""
+
+			defaultBumpScale := float64(1.0)
+			bumpScale := &defaultBumpScale
+			defaultGlossiness := float64(0)
+			glossiness := &defaultGlossiness
+
 			color := &Color{}
 			emissionColor := &Color{}
 
@@ -221,7 +233,8 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 
 					for _, materialSavedPropertiesTexEnv := range materialSavedPropertiesTexEnvs {
 						key := materialSavedPropertiesTexEnv.Array()[0].Str
-						if key == "_MainTex" {
+						switch key {
+						case "_MainTex":
 							mainTexValue := materialSavedPropertiesTexEnv.Array()[1].Map()
 
 							if !mainTexValue["m_Texture"].Exists() {
@@ -240,7 +253,7 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 									break
 								}
 							}
-						} else if key == "_EmissionMap" {
+						case "_EmissionMap":
 							emissionMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
 
 							if !emissionMapValue["m_Texture"].Exists() {
@@ -259,7 +272,67 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 									break
 								}
 							}
+						case "_BumpMap":
+							bumpMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
+
+							if !bumpMapValue["m_Texture"].Exists() {
+								return nil, nil, fmt.Errorf("cannot find m_Texture")
+							}
+
+							bumpMapPathId := bumpMapValue["m_Texture"].Map()["m_PathID"].String()
+
+							if bumpMapPathId == "0" {
+								continue
+							}
+
+							for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
+								if strings.Contains(resourceInPreloadDataFile, bumpMapPathId+"_Texture2D") {
+									bumpMapPath = resourceInPreloadDataFile
+									break
+								}
+							}
+						case "_MetallicGlossMap":
+							metallicGlossMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
+
+							if !metallicGlossMapValue["m_Texture"].Exists() {
+								return nil, nil, fmt.Errorf("cannot find m_Texture")
+							}
+
+							metallicGlossMapPathId := metallicGlossMapValue["m_Texture"].Map()["m_PathID"].String()
+
+							if metallicGlossMapPathId == "0" {
+								continue
+							}
+
+							for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
+								if strings.Contains(resourceInPreloadDataFile, metallicGlossMapPathId+"_Texture2D") {
+									metallicGlossMapPath = resourceInPreloadDataFile
+									break
+								}
+							}
 						}
+					}
+
+					if !materialSavedProperties["m_Floats"].Exists() {
+						return nil, nil, fmt.Errorf("cannot find m_Floats")
+					}
+
+					materialSavedPropertiesFloats := materialSavedProperties["m_Floats"].Array()
+
+					for _, materialSavedPropertiesFloat := range materialSavedPropertiesFloats {
+						key := materialSavedPropertiesFloat.Array()[0].Str
+						switch key {
+						case "_BumpScale":
+							_bumpScale := materialSavedPropertiesFloat.Array()[1].Float()
+							bumpScale = &_bumpScale
+						case "_Glossiness":
+							_glossiness := materialSavedPropertiesFloat.Array()[1].Float()
+							glossiness = &_glossiness
+						}
+					}
+
+					if !materialSavedProperties["m_Colors"].Exists() {
+						return nil, nil, fmt.Errorf("cannot find m_Colors")
 					}
 
 					materialSavedPropertiesColors := materialSavedProperties["m_Colors"].Array()
@@ -300,7 +373,7 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 			// }
 			if texturePath != "" {
 				materials[materialPathId] = MaterialConfig{
-					Texture: ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(texturePath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1),
+					Map: ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(texturePath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1),
 				}
 			}
 
@@ -308,8 +381,20 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 				if emissionMapPath != "" {
 					emissionMapUrl := ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(emissionMapPath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1)
 					materialConfig.EmissionMap = &emissionMapUrl
-					materials[materialPathId] = materialConfig
 				}
+
+				if bumpMapPath != "" {
+					bumpMapUrl := ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(bumpMapPath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1)
+					materialConfig.BumpMap = &bumpMapUrl
+				}
+
+				if metallicGlossMapPath != "" {
+					metallicGlossMapUrl := ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(metallicGlossMapPath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1)
+					materialConfig.MetallicGlossMap = &metallicGlossMapUrl
+				}
+
+				materialConfig.BumpScale = bumpScale
+				materialConfig.Glossiness = glossiness
 
 				if color != (&Color{}) {
 					materialConfig.Color = color
