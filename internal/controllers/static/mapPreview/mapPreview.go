@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/h2non/bimg"
@@ -22,7 +23,7 @@ type StaticMapPreviewController struct {
 }
 
 func RegisterStaticMapPreviewController(appStaticApiV0AK *versioning.AppStaticApiV0AK, c StaticMapPreviewController) error {
-	appStaticApiV0AK.Get("/mappreview/:mapId/:width/:quality", c.MapPreview)
+	appStaticApiV0AK.Get("/mappreview/:mapId/:width/:quality", c.MapPreview).Name("map.preview")
 	return nil
 }
 
@@ -66,6 +67,33 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 
 	mapPreviewObject, err := c.AkAbFs.NewObject(mapPreviewPath)
 	if err != nil {
+		// For easy and tough stages, redirect to main stage if map preview is not found
+		lowerMapId := strings.ToLower(ctx.Params("mapId"))
+		isEasyMapId := lowerMapId[:4] == "easy"
+		isToughMapId := lowerMapId[:5] == "tough"
+
+		if isEasyMapId || isToughMapId {
+			mainMapId := ""
+			if isEasyMapId {
+				mainMapId = "main" + lowerMapId[4:]
+			} else if isToughMapId {
+				mainMapId = "main" + lowerMapId[5:]
+			}
+
+			mainMapIdUrl, err := ctx.GetRouteURL("map.preview", fiber.Map{
+				"server":   ctx.Params("server"),
+				"platform": ctx.Params("platform"),
+				// TODO: https://github.com/gofiber/fiber/issues/1907
+				"mapId": mainMapId,
+				"width": width,
+				"quality": quality,
+			})
+			if err != nil {
+				return err
+			}
+			return ctx.Redirect(mainMapIdUrl)
+		}
+
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
 
