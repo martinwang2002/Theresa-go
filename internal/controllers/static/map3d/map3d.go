@@ -166,245 +166,249 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 		}
 
 		firstSubMesh := meshRendererFileJson["m_StaticBatchInfo"].Map()["firstSubMesh"].Int()
+		subMeshCount := meshRendererFileJson["m_StaticBatchInfo"].Map()["subMeshCount"].Int()
 
-		if int(firstSubMesh) > len(meshConfigs) {
-			meshConfigs = append(meshConfigs, make([]MeshConfig, int(firstSubMesh)-len(meshConfigs)+1)...)
-		}
-
-		if !meshRendererFileJson["m_LightmapTilingOffset"].Exists() {
-			return nil, nil, fmt.Errorf("cannot find m_LightmapTilingOffset")
-		}
-
-		meshConfigs[firstSubMesh].LightmapConfig = LightmapConfig{
-			X: meshRendererFileJson["m_LightmapTilingOffset"].Map()["x"].Float(),
-			Y: meshRendererFileJson["m_LightmapTilingOffset"].Map()["y"].Float(),
-			Z: meshRendererFileJson["m_LightmapTilingOffset"].Map()["z"].Float(),
-			W: meshRendererFileJson["m_LightmapTilingOffset"].Map()["w"].Float(),
-		}
-
-		// Material path id
-		if !meshRendererFileJson["m_Materials"].Exists() {
-			return nil, nil, fmt.Errorf("cannot find m_Materials")
-		}
-
-		m_Materials := meshRendererFileJson["m_Materials"].Array()
-
-		if !m_Materials[0].Exists() || !m_Materials[0].Map()["m_PathID"].Exists() {
-			return nil, nil, fmt.Errorf("cannot find m_PathID")
-		}
-
-		materialPathId := m_Materials[0].Map()["m_PathID"].String()
-
-		meshConfigs[firstSubMesh].Material = materialPathId
-
-		// texture
-		if _, exists := materials[materialPathId]; !exists {
-			texturePath := ""
-			bumpMapPath := ""
-			emissionMapPath := ""
-			metallicGlossMapPath := ""
-
-			defaultBumpScale := float64(1.0)
-			bumpScale := &defaultBumpScale
-			defaultGlossiness := float64(0)
-			glossiness := &defaultGlossiness
-
-			color := &Color{}
-			emissionColor := &Color{}
-
-			for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
-				if strings.Contains(resourceInPreloadDataFile, "/"+materialPathId+"_Material") {
-					resourceInPreloadDataFileJsonResult, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/" + resourceInPreloadDataFile)
-					if err != nil {
-						return nil, nil, err
-					}
-
-					if !resourceInPreloadDataFileJsonResult.Map()["m_SavedProperties"].Exists() {
-						return nil, nil, fmt.Errorf("cannot find m_SavedProperties")
-					}
-
-					materialSavedProperties := resourceInPreloadDataFileJsonResult.Map()["m_SavedProperties"].Map()
-
-					if !materialSavedProperties["m_TexEnvs"].Exists() {
-						return nil, nil, fmt.Errorf("cannot find m_TexEnvs")
-					}
-
-					materialSavedPropertiesTexEnvs := materialSavedProperties["m_TexEnvs"].Array()
-
-					for _, materialSavedPropertiesTexEnv := range materialSavedPropertiesTexEnvs {
-						key := materialSavedPropertiesTexEnv.Array()[0].Str
-						switch key {
-						case "_MainTex":
-							mainTexValue := materialSavedPropertiesTexEnv.Array()[1].Map()
-
-							if !mainTexValue["m_Texture"].Exists() {
-								return nil, nil, fmt.Errorf("cannot find m_Texture")
-							}
-
-							mainTexPathId := mainTexValue["m_Texture"].Map()["m_PathID"].String()
-
-							if mainTexPathId == "0" {
-								return nil, nil, fmt.Errorf("cannot find m_Texture")
-							}
-
-							for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
-								if strings.Contains(resourceInPreloadDataFile, mainTexPathId+"_Texture2D") {
-									texturePath = resourceInPreloadDataFile
-									break
-								}
-							}
-						case "_EmissionMap":
-							emissionMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
-
-							if !emissionMapValue["m_Texture"].Exists() {
-								return nil, nil, fmt.Errorf("cannot find m_Texture")
-							}
-
-							emissionMapPathId := emissionMapValue["m_Texture"].Map()["m_PathID"].String()
-
-							if emissionMapPathId == "0" {
-								continue
-							}
-
-							for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
-								if strings.Contains(resourceInPreloadDataFile, emissionMapPathId+"_Texture2D") {
-									emissionMapPath = resourceInPreloadDataFile
-									break
-								}
-							}
-						case "_BumpMap":
-							bumpMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
-
-							if !bumpMapValue["m_Texture"].Exists() {
-								return nil, nil, fmt.Errorf("cannot find m_Texture")
-							}
-
-							bumpMapPathId := bumpMapValue["m_Texture"].Map()["m_PathID"].String()
-
-							if bumpMapPathId == "0" {
-								continue
-							}
-
-							for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
-								if strings.Contains(resourceInPreloadDataFile, bumpMapPathId+"_Texture2D") {
-									bumpMapPath = resourceInPreloadDataFile
-									break
-								}
-							}
-						case "_MetallicGlossMap":
-							metallicGlossMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
-
-							if !metallicGlossMapValue["m_Texture"].Exists() {
-								return nil, nil, fmt.Errorf("cannot find m_Texture")
-							}
-
-							metallicGlossMapPathId := metallicGlossMapValue["m_Texture"].Map()["m_PathID"].String()
-
-							if metallicGlossMapPathId == "0" {
-								continue
-							}
-
-							for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
-								if strings.Contains(resourceInPreloadDataFile, metallicGlossMapPathId+"_Texture2D") {
-									metallicGlossMapPath = resourceInPreloadDataFile
-									break
-								}
-							}
-						}
-					}
-
-					if !materialSavedProperties["m_Floats"].Exists() {
-						return nil, nil, fmt.Errorf("cannot find m_Floats")
-					}
-
-					materialSavedPropertiesFloats := materialSavedProperties["m_Floats"].Array()
-
-					for _, materialSavedPropertiesFloat := range materialSavedPropertiesFloats {
-						key := materialSavedPropertiesFloat.Array()[0].Str
-						switch key {
-						case "_BumpScale":
-							_bumpScale := materialSavedPropertiesFloat.Array()[1].Float()
-							bumpScale = &_bumpScale
-						case "_Glossiness":
-							_glossiness := materialSavedPropertiesFloat.Array()[1].Float()
-							glossiness = &_glossiness
-						}
-					}
-
-					if !materialSavedProperties["m_Colors"].Exists() {
-						return nil, nil, fmt.Errorf("cannot find m_Colors")
-					}
-
-					materialSavedPropertiesColors := materialSavedProperties["m_Colors"].Array()
-
-					for _, materialSavedPropertiesColor := range materialSavedPropertiesColors {
-						key := materialSavedPropertiesColor.Array()[0].Str
-						if key == "_Color" {
-							colorValue := materialSavedPropertiesColor.Array()[1].Map()
-							color = &Color{
-								R: colorValue["r"].Float(),
-								G: colorValue["g"].Float(),
-								B: colorValue["b"].Float(),
-								A: colorValue["a"].Float(),
-							}
-							continue
-						} else if key == "_EmissionColor" {
-							emissionColorValue := materialSavedPropertiesColor.Array()[1].Map()
-							emissionColor = &Color{
-								R: emissionColorValue["r"].Float(),
-								G: emissionColorValue["g"].Float(),
-								B: emissionColorValue["b"].Float(),
-								A: emissionColorValue["a"].Float(),
-							}
-							continue
-						}
-					}
-				}
-			}
-			// Params * has bug
-			// TODO: https://github.com/gofiber/fiber/issues/1921
-			// resourceInPreloadDataFileUrl, err := ctx.GetRouteURL("map3d.material", fiber.Map{
-			// 	"server":   ctx.Params("server"),
-			// 	"platform": ctx.Params("platform"),
-			// 	"*":        strings.Replace(resourceInPreloadDataFile, "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1),
-			// })
-			// if err != nil {
-			// 	return nil, nil, err
-			// }
-			if texturePath != "" {
-				materials[materialPathId] = MaterialConfig{
-					Map: ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(texturePath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1),
-				}
+		for subMeshIndex := int64(0); subMeshIndex < subMeshCount; subMeshIndex++ {
+			subMesh := firstSubMesh + subMeshIndex
+			if int(subMesh) > len(meshConfigs) {
+				meshConfigs = append(meshConfigs, make([]MeshConfig, int(subMesh)-len(meshConfigs)+1)...)
 			}
 
-			if materialConfig, ok := materials[materialPathId]; ok {
-				if emissionMapPath != "" {
-					emissionMapUrl := ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(emissionMapPath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1)
-					materialConfig.EmissionMap = &emissionMapUrl
+			if !meshRendererFileJson["m_LightmapTilingOffset"].Exists() {
+				return nil, nil, fmt.Errorf("cannot find m_LightmapTilingOffset")
+			}
+
+			meshConfigs[subMesh].LightmapConfig = LightmapConfig{
+				X: meshRendererFileJson["m_LightmapTilingOffset"].Map()["x"].Float(),
+				Y: meshRendererFileJson["m_LightmapTilingOffset"].Map()["y"].Float(),
+				Z: meshRendererFileJson["m_LightmapTilingOffset"].Map()["z"].Float(),
+				W: meshRendererFileJson["m_LightmapTilingOffset"].Map()["w"].Float(),
+			}
+
+			// Material path id
+			if !meshRendererFileJson["m_Materials"].Exists() {
+				return nil, nil, fmt.Errorf("cannot find m_Materials")
+			}
+
+			m_Materials := meshRendererFileJson["m_Materials"].Array()
+
+			if !m_Materials[subMeshIndex].Exists() || !m_Materials[subMeshIndex].Map()["m_PathID"].Exists() {
+				return nil, nil, fmt.Errorf("cannot find m_PathID")
+			}
+
+			materialPathId := m_Materials[subMeshIndex].Map()["m_PathID"].String()
+
+			meshConfigs[subMesh].Material = materialPathId
+
+			// texture
+			if _, exists := materials[materialPathId]; !exists {
+				texturePath := ""
+				bumpMapPath := ""
+				emissionMapPath := ""
+				metallicGlossMapPath := ""
+
+				defaultBumpScale := float64(1.0)
+				bumpScale := &defaultBumpScale
+				defaultGlossiness := float64(0)
+				glossiness := &defaultGlossiness
+
+				color := &Color{}
+				emissionColor := &Color{}
+
+				for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
+					if strings.Contains(resourceInPreloadDataFile, "/"+materialPathId+"_Material") {
+						resourceInPreloadDataFileJsonResult, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/" + resourceInPreloadDataFile)
+						if err != nil {
+							return nil, nil, err
+						}
+
+						if !resourceInPreloadDataFileJsonResult.Map()["m_SavedProperties"].Exists() {
+							return nil, nil, fmt.Errorf("cannot find m_SavedProperties")
+						}
+
+						materialSavedProperties := resourceInPreloadDataFileJsonResult.Map()["m_SavedProperties"].Map()
+
+						if !materialSavedProperties["m_TexEnvs"].Exists() {
+							return nil, nil, fmt.Errorf("cannot find m_TexEnvs")
+						}
+
+						materialSavedPropertiesTexEnvs := materialSavedProperties["m_TexEnvs"].Array()
+
+						for _, materialSavedPropertiesTexEnv := range materialSavedPropertiesTexEnvs {
+							key := materialSavedPropertiesTexEnv.Array()[0].Str
+							switch key {
+							case "_MainTex":
+								mainTexValue := materialSavedPropertiesTexEnv.Array()[1].Map()
+
+								if !mainTexValue["m_Texture"].Exists() {
+									return nil, nil, fmt.Errorf("cannot find m_Texture")
+								}
+
+								mainTexPathId := mainTexValue["m_Texture"].Map()["m_PathID"].String()
+
+								if mainTexPathId == "0" {
+									return nil, nil, fmt.Errorf("cannot find m_Texture")
+								}
+
+								for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
+									if strings.Contains(resourceInPreloadDataFile, mainTexPathId+"_Texture2D") {
+										texturePath = resourceInPreloadDataFile
+										break
+									}
+								}
+							case "_EmissionMap":
+								emissionMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
+
+								if !emissionMapValue["m_Texture"].Exists() {
+									return nil, nil, fmt.Errorf("cannot find m_Texture")
+								}
+
+								emissionMapPathId := emissionMapValue["m_Texture"].Map()["m_PathID"].String()
+
+								if emissionMapPathId == "0" {
+									continue
+								}
+
+								for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
+									if strings.Contains(resourceInPreloadDataFile, emissionMapPathId+"_Texture2D") {
+										emissionMapPath = resourceInPreloadDataFile
+										break
+									}
+								}
+							case "_BumpMap":
+								bumpMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
+
+								if !bumpMapValue["m_Texture"].Exists() {
+									return nil, nil, fmt.Errorf("cannot find m_Texture")
+								}
+
+								bumpMapPathId := bumpMapValue["m_Texture"].Map()["m_PathID"].String()
+
+								if bumpMapPathId == "0" {
+									continue
+								}
+
+								for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
+									if strings.Contains(resourceInPreloadDataFile, bumpMapPathId+"_Texture2D") {
+										bumpMapPath = resourceInPreloadDataFile
+										break
+									}
+								}
+							case "_MetallicGlossMap":
+								metallicGlossMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
+
+								if !metallicGlossMapValue["m_Texture"].Exists() {
+									return nil, nil, fmt.Errorf("cannot find m_Texture")
+								}
+
+								metallicGlossMapPathId := metallicGlossMapValue["m_Texture"].Map()["m_PathID"].String()
+
+								if metallicGlossMapPathId == "0" {
+									continue
+								}
+
+								for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
+									if strings.Contains(resourceInPreloadDataFile, metallicGlossMapPathId+"_Texture2D") {
+										metallicGlossMapPath = resourceInPreloadDataFile
+										break
+									}
+								}
+							}
+						}
+
+						if !materialSavedProperties["m_Floats"].Exists() {
+							return nil, nil, fmt.Errorf("cannot find m_Floats")
+						}
+
+						materialSavedPropertiesFloats := materialSavedProperties["m_Floats"].Array()
+
+						for _, materialSavedPropertiesFloat := range materialSavedPropertiesFloats {
+							key := materialSavedPropertiesFloat.Array()[0].Str
+							switch key {
+							case "_BumpScale":
+								_bumpScale := materialSavedPropertiesFloat.Array()[1].Float()
+								bumpScale = &_bumpScale
+							case "_Glossiness":
+								_glossiness := materialSavedPropertiesFloat.Array()[1].Float()
+								glossiness = &_glossiness
+							}
+						}
+
+						if !materialSavedProperties["m_Colors"].Exists() {
+							return nil, nil, fmt.Errorf("cannot find m_Colors")
+						}
+
+						materialSavedPropertiesColors := materialSavedProperties["m_Colors"].Array()
+
+						for _, materialSavedPropertiesColor := range materialSavedPropertiesColors {
+							key := materialSavedPropertiesColor.Array()[0].Str
+							if key == "_Color" {
+								colorValue := materialSavedPropertiesColor.Array()[1].Map()
+								color = &Color{
+									R: colorValue["r"].Float(),
+									G: colorValue["g"].Float(),
+									B: colorValue["b"].Float(),
+									A: colorValue["a"].Float(),
+								}
+								continue
+							} else if key == "_EmissionColor" {
+								emissionColorValue := materialSavedPropertiesColor.Array()[1].Map()
+								emissionColor = &Color{
+									R: emissionColorValue["r"].Float(),
+									G: emissionColorValue["g"].Float(),
+									B: emissionColorValue["b"].Float(),
+									A: emissionColorValue["a"].Float(),
+								}
+								continue
+							}
+						}
+					}
+				}
+				// Params * has bug
+				// TODO: https://github.com/gofiber/fiber/issues/1921
+				// resourceInPreloadDataFileUrl, err := ctx.GetRouteURL("map3d.material", fiber.Map{
+				// 	"server":   ctx.Params("server"),
+				// 	"platform": ctx.Params("platform"),
+				// 	"*":        strings.Replace(resourceInPreloadDataFile, "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1),
+				// })
+				// if err != nil {
+				// 	return nil, nil, err
+				// }
+				if texturePath != "" {
+					materials[materialPathId] = MaterialConfig{
+						Map: ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(texturePath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1),
+					}
 				}
 
-				if bumpMapPath != "" {
-					bumpMapUrl := ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(bumpMapPath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1)
-					materialConfig.BumpMap = &bumpMapUrl
+				if materialConfig, ok := materials[materialPathId]; ok {
+					if emissionMapPath != "" {
+						emissionMapUrl := ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(emissionMapPath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1)
+						materialConfig.EmissionMap = &emissionMapUrl
+					}
+
+					if bumpMapPath != "" {
+						bumpMapUrl := ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(bumpMapPath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1)
+						materialConfig.BumpMap = &bumpMapUrl
+					}
+
+					if metallicGlossMapPath != "" {
+						metallicGlossMapUrl := ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(metallicGlossMapPath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1)
+						materialConfig.MetallicGlossMap = &metallicGlossMapUrl
+					}
+
+					materialConfig.BumpScale = bumpScale
+					materialConfig.Glossiness = glossiness
+
+					if color != (&Color{}) {
+						materialConfig.Color = color
+					}
+
+					if emissionColor != (&Color{}) {
+						materialConfig.EmissionColor = emissionColor
+					}
+
+					materials[materialPathId] = materialConfig
 				}
-
-				if metallicGlossMapPath != "" {
-					metallicGlossMapUrl := ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(metallicGlossMapPath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1)
-					materialConfig.MetallicGlossMap = &metallicGlossMapUrl
-				}
-
-				materialConfig.BumpScale = bumpScale
-				materialConfig.Glossiness = glossiness
-
-				if color != (&Color{}) {
-					materialConfig.Color = color
-				}
-
-				if emissionColor != (&Color{}) {
-					materialConfig.EmissionColor = emissionColor
-				}
-
-				materials[materialPathId] = materialConfig
 			}
 		}
 	}
