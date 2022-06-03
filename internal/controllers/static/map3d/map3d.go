@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/tidwall/gjson"
 	"go.uber.org/fx"
 
 	"theresa-go/internal/akAbFs"
@@ -103,31 +104,47 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 		return nil, nil, fmt.Errorf("no files field in .lock file found")
 	}
 
-	preloadDataFile := ""
-
-	meshRendererFiles := []string{}
+	typetreeFile := ""
 
 	for _, sceneAbLockJsonFile := range sceneAbLockJson["files"].Array() {
 		splittedPath := strings.Split(sceneAbLockJsonFile.Str, "/")
 		fileName := splittedPath[len(splittedPath)-1]
 
-		if strings.Contains(fileName, "MeshRenderer") {
-			meshRendererFiles = append(meshRendererFiles, sceneAbLockJsonFile.Str)
-		} else if strings.Contains(fileName, "PreloadData") {
-			preloadDataFile = sceneAbLockJsonFile.Str
+		if strings.Contains(fileName, ".ab.json") {
+			typetreeFile = sceneAbLockJsonFile.Str
 		}
 	}
 
-	// load preloadDataFile
-	if preloadDataFile == "" {
-		return nil, nil, fmt.Errorf("no preloadDataFile found")
+	// load typetreeFile
+	if typetreeFile == "" {
+		return nil, nil, fmt.Errorf("no typetree found")
 	}
-	preloadDataFileJsonResult, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/" + preloadDataFile)
+	typetreeFileJsonResult, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/" + typetreeFile)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// load all resource references in preloadDataFile
+	typetreeFileJsonResultMap := typetreeFileJsonResult.Map()
+
+	preloadDataFileKey := ""
+
+	meshRendererFileKeys := []string{}
+
+	for key := range typetreeFileJsonResultMap {
+		if strings.Contains(key, "MeshRenderer") {
+			meshRendererFileKeys = append(meshRendererFileKeys, key)
+		} else if strings.Contains(key, "PreloadData") {
+			preloadDataFileKey = key
+		}
+	}
+
+	if preloadDataFileKey == "" {
+		return nil, nil, fmt.Errorf("no preloadDataFile found")
+	}
+	preloadDataFileJsonResult := typetreeFileJsonResultMap[preloadDataFileKey]
+
+	// load all resource references in preloadDataFile and corresponding typetrees
+	typetreesInPreloadDataFile := map[string]*gjson.Result{}
 	resourcesInPreloadDataFile := []string{}
 
 	preloadDataFileJsonDependencies := preloadDataFileJsonResult.Map()["m_Dependencies"].Array()
@@ -142,24 +159,25 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 		}
 
 		for _, preloadDataFileJsonDependencyLockFileJsonFile := range preloadDataFileJsonDependencyLockFileJsonResult.Map()["files"].Array() {
+			// load typetree
+			if strings.Contains(preloadDataFileJsonDependencyLockFileJsonFile.Str, ".ab.json") {
+				resourceInPreloadDataFileJsonResult, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/" + preloadDataFileJsonDependencyLockFileJsonFile.Str)
+				if err != nil {
+					return nil, nil, err
+				}
+				typetreesInPreloadDataFile[preloadDataFileJsonDependencyLockFileJsonFile.Str] = resourceInPreloadDataFileJsonResult
+			}
+			// load resource
 			resourcesInPreloadDataFile = append(resourcesInPreloadDataFile, preloadDataFileJsonDependencyLockFileJsonFile.Str)
 		}
 	}
 
 	// Generate meshConfigs
-	meshConfigs := make([]MeshConfig, len(meshRendererFiles))
+	meshConfigs := make([]MeshConfig, len(meshRendererFileKeys))
 	materials := map[string]MaterialConfig{}
 
-	for _, meshRendererFile := range meshRendererFiles {
-		meshRendererPath := staticProdVersionPath + "/" + meshRendererFile
-
-		meshRendererFileJsonResult, err := c.AkAbFs.NewJsonObject(meshRendererPath)
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		meshRendererFileJson := meshRendererFileJsonResult.Map()
+	for _, meshRendererFileKey := range meshRendererFileKeys {
+		meshRendererFileJson := typetreeFileJsonResultMap[meshRendererFileKey].Map()
 
 		if !meshRendererFileJson["m_StaticBatchInfo"].Exists() || !meshRendererFileJson["m_StaticBatchInfo"].Map()["firstSubMesh"].Exists() {
 			return nil, nil, fmt.Errorf("cannot find firstSubMesh")
@@ -215,151 +233,151 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 				color := &Color{}
 				emissionColor := &Color{}
 
-				for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
-					if strings.Contains(resourceInPreloadDataFile, "/"+materialPathId+"_Material") {
-						resourceInPreloadDataFileJsonResult, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/" + resourceInPreloadDataFile)
-						if err != nil {
-							return nil, nil, err
-						}
+				for _, typetreeInPreloadDataFile := range typetreesInPreloadDataFile {
+					typetreeInPreloadDataFileMap := typetreeInPreloadDataFile.Map()
+					for typetreeInPreloadDataFileKey := range typetreeInPreloadDataFileMap {
+						if strings.HasPrefix(typetreeInPreloadDataFileKey, materialPathId+"_Material") {
+							typetreeInPreloadDataFileJsonResult := typetreeInPreloadDataFileMap[typetreeInPreloadDataFileKey]
 
-						if !resourceInPreloadDataFileJsonResult.Map()["m_SavedProperties"].Exists() {
-							return nil, nil, fmt.Errorf("cannot find m_SavedProperties")
-						}
+							if !typetreeInPreloadDataFileJsonResult.Map()["m_SavedProperties"].Exists() {
+								return nil, nil, fmt.Errorf("cannot find m_SavedProperties")
+							}
 
-						materialSavedProperties := resourceInPreloadDataFileJsonResult.Map()["m_SavedProperties"].Map()
+							materialSavedProperties := typetreeInPreloadDataFileJsonResult.Map()["m_SavedProperties"].Map()
 
-						if !materialSavedProperties["m_TexEnvs"].Exists() {
-							return nil, nil, fmt.Errorf("cannot find m_TexEnvs")
-						}
+							if !materialSavedProperties["m_TexEnvs"].Exists() {
+								return nil, nil, fmt.Errorf("cannot find m_TexEnvs")
+							}
 
-						materialSavedPropertiesTexEnvs := materialSavedProperties["m_TexEnvs"].Array()
+							materialSavedPropertiesTexEnvs := materialSavedProperties["m_TexEnvs"].Array()
 
-						for _, materialSavedPropertiesTexEnv := range materialSavedPropertiesTexEnvs {
-							key := materialSavedPropertiesTexEnv.Array()[0].Str
-							switch key {
-							case "_MainTex":
-								mainTexValue := materialSavedPropertiesTexEnv.Array()[1].Map()
+							for _, materialSavedPropertiesTexEnv := range materialSavedPropertiesTexEnvs {
+								key := materialSavedPropertiesTexEnv.Array()[0].Str
+								switch key {
+								case "_MainTex":
+									mainTexValue := materialSavedPropertiesTexEnv.Array()[1].Map()
 
-								if !mainTexValue["m_Texture"].Exists() {
-									return nil, nil, fmt.Errorf("cannot find m_Texture")
-								}
-
-								mainTexPathId := mainTexValue["m_Texture"].Map()["m_PathID"].String()
-
-								if mainTexPathId == "0" {
-									return nil, nil, fmt.Errorf("cannot find m_Texture")
-								}
-
-								for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
-									if strings.Contains(resourceInPreloadDataFile, mainTexPathId+"_Texture2D") {
-										texturePath = resourceInPreloadDataFile
-										break
+									if !mainTexValue["m_Texture"].Exists() {
+										return nil, nil, fmt.Errorf("cannot find m_Texture")
 									}
-								}
-							case "_EmissionMap":
-								emissionMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
 
-								if !emissionMapValue["m_Texture"].Exists() {
-									return nil, nil, fmt.Errorf("cannot find m_Texture")
-								}
+									mainTexPathId := mainTexValue["m_Texture"].Map()["m_PathID"].String()
 
-								emissionMapPathId := emissionMapValue["m_Texture"].Map()["m_PathID"].String()
-
-								if emissionMapPathId == "0" {
-									continue
-								}
-
-								for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
-									if strings.Contains(resourceInPreloadDataFile, emissionMapPathId+"_Texture2D") {
-										emissionMapPath = resourceInPreloadDataFile
-										break
+									if mainTexPathId == "0" {
+										return nil, nil, fmt.Errorf("cannot find m_Texture")
 									}
-								}
-							case "_BumpMap":
-								bumpMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
 
-								if !bumpMapValue["m_Texture"].Exists() {
-									return nil, nil, fmt.Errorf("cannot find m_Texture")
-								}
-
-								bumpMapPathId := bumpMapValue["m_Texture"].Map()["m_PathID"].String()
-
-								if bumpMapPathId == "0" {
-									continue
-								}
-
-								for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
-									if strings.Contains(resourceInPreloadDataFile, bumpMapPathId+"_Texture2D") {
-										bumpMapPath = resourceInPreloadDataFile
-										break
+									for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
+										if strings.Contains(resourceInPreloadDataFile, mainTexPathId+"_Texture2D") {
+											texturePath = resourceInPreloadDataFile
+											break
+										}
 									}
-								}
-							case "_MetallicGlossMap":
-								metallicGlossMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
+								case "_EmissionMap":
+									emissionMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
 
-								if !metallicGlossMapValue["m_Texture"].Exists() {
-									return nil, nil, fmt.Errorf("cannot find m_Texture")
-								}
+									if !emissionMapValue["m_Texture"].Exists() {
+										return nil, nil, fmt.Errorf("cannot find m_Texture")
+									}
 
-								metallicGlossMapPathId := metallicGlossMapValue["m_Texture"].Map()["m_PathID"].String()
+									emissionMapPathId := emissionMapValue["m_Texture"].Map()["m_PathID"].String()
 
-								if metallicGlossMapPathId == "0" {
-									continue
-								}
+									if emissionMapPathId == "0" {
+										continue
+									}
 
-								for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
-									if strings.Contains(resourceInPreloadDataFile, metallicGlossMapPathId+"_Texture2D") {
-										metallicGlossMapPath = resourceInPreloadDataFile
-										break
+									for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
+										if strings.Contains(resourceInPreloadDataFile, emissionMapPathId+"_Texture2D") {
+											emissionMapPath = resourceInPreloadDataFile
+											break
+										}
+									}
+								case "_BumpMap":
+									bumpMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
+
+									if !bumpMapValue["m_Texture"].Exists() {
+										return nil, nil, fmt.Errorf("cannot find m_Texture")
+									}
+
+									bumpMapPathId := bumpMapValue["m_Texture"].Map()["m_PathID"].String()
+
+									if bumpMapPathId == "0" {
+										continue
+									}
+
+									for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
+										if strings.Contains(resourceInPreloadDataFile, bumpMapPathId+"_Texture2D") {
+											bumpMapPath = resourceInPreloadDataFile
+											break
+										}
+									}
+								case "_MetallicGlossMap":
+									metallicGlossMapValue := materialSavedPropertiesTexEnv.Array()[1].Map()
+
+									if !metallicGlossMapValue["m_Texture"].Exists() {
+										return nil, nil, fmt.Errorf("cannot find m_Texture")
+									}
+
+									metallicGlossMapPathId := metallicGlossMapValue["m_Texture"].Map()["m_PathID"].String()
+
+									if metallicGlossMapPathId == "0" {
+										continue
+									}
+
+									for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
+										if strings.Contains(resourceInPreloadDataFile, metallicGlossMapPathId+"_Texture2D") {
+											metallicGlossMapPath = resourceInPreloadDataFile
+											break
+										}
 									}
 								}
 							}
-						}
 
-						if !materialSavedProperties["m_Floats"].Exists() {
-							return nil, nil, fmt.Errorf("cannot find m_Floats")
-						}
-
-						materialSavedPropertiesFloats := materialSavedProperties["m_Floats"].Array()
-
-						for _, materialSavedPropertiesFloat := range materialSavedPropertiesFloats {
-							key := materialSavedPropertiesFloat.Array()[0].Str
-							switch key {
-							case "_BumpScale":
-								_bumpScale := materialSavedPropertiesFloat.Array()[1].Float()
-								bumpScale = &_bumpScale
-							case "_Glossiness":
-								_glossiness := materialSavedPropertiesFloat.Array()[1].Float()
-								glossiness = &_glossiness
+							if !materialSavedProperties["m_Floats"].Exists() {
+								return nil, nil, fmt.Errorf("cannot find m_Floats")
 							}
-						}
 
-						if !materialSavedProperties["m_Colors"].Exists() {
-							return nil, nil, fmt.Errorf("cannot find m_Colors")
-						}
+							materialSavedPropertiesFloats := materialSavedProperties["m_Floats"].Array()
 
-						materialSavedPropertiesColors := materialSavedProperties["m_Colors"].Array()
-
-						for _, materialSavedPropertiesColor := range materialSavedPropertiesColors {
-							key := materialSavedPropertiesColor.Array()[0].Str
-							if key == "_Color" {
-								colorValue := materialSavedPropertiesColor.Array()[1].Map()
-								color = &Color{
-									R: colorValue["r"].Float(),
-									G: colorValue["g"].Float(),
-									B: colorValue["b"].Float(),
-									A: colorValue["a"].Float(),
+							for _, materialSavedPropertiesFloat := range materialSavedPropertiesFloats {
+								key := materialSavedPropertiesFloat.Array()[0].Str
+								switch key {
+								case "_BumpScale":
+									_bumpScale := materialSavedPropertiesFloat.Array()[1].Float()
+									bumpScale = &_bumpScale
+								case "_Glossiness":
+									_glossiness := materialSavedPropertiesFloat.Array()[1].Float()
+									glossiness = &_glossiness
 								}
-								continue
-							} else if key == "_EmissionColor" {
-								emissionColorValue := materialSavedPropertiesColor.Array()[1].Map()
-								emissionColor = &Color{
-									R: emissionColorValue["r"].Float(),
-									G: emissionColorValue["g"].Float(),
-									B: emissionColorValue["b"].Float(),
-									A: emissionColorValue["a"].Float(),
+							}
+
+							if !materialSavedProperties["m_Colors"].Exists() {
+								return nil, nil, fmt.Errorf("cannot find m_Colors")
+							}
+
+							materialSavedPropertiesColors := materialSavedProperties["m_Colors"].Array()
+
+							for _, materialSavedPropertiesColor := range materialSavedPropertiesColors {
+								key := materialSavedPropertiesColor.Array()[0].Str
+								if key == "_Color" {
+									colorValue := materialSavedPropertiesColor.Array()[1].Map()
+									color = &Color{
+										R: colorValue["r"].Float(),
+										G: colorValue["g"].Float(),
+										B: colorValue["b"].Float(),
+										A: colorValue["a"].Float(),
+									}
+									continue
+								} else if key == "_EmissionColor" {
+									emissionColorValue := materialSavedPropertiesColor.Array()[1].Map()
+									emissionColor = &Color{
+										R: emissionColorValue["r"].Float(),
+										G: emissionColorValue["g"].Float(),
+										B: emissionColorValue["b"].Float(),
+										A: emissionColorValue["a"].Float(),
+									}
+									continue
 								}
-								continue
 							}
 						}
 					}
