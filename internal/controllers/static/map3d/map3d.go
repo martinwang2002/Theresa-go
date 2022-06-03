@@ -37,7 +37,7 @@ type Obj struct {
 }
 
 type MaterialConfig struct {
-	Map              string   `json:"map"`
+	Map              *string  `json:"map"`
 	BumpMap          *string  `json:"bumpMap"`
 	EmissionMap      *string  `json:"emissionMap"`
 	MetallicGlossMap *string  `json:"metallicGlossMap"`
@@ -265,7 +265,6 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 
 									if mainTexPathId == "0" {
 										continue
-										// return nil, nil, fmt.Errorf("cannot find m_Texture")
 									}
 
 									for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
@@ -393,13 +392,14 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 				// if err != nil {
 				// 	return nil, nil, err
 				// }
-				if texturePath != "" {
-					materials[materialPathId] = MaterialConfig{
-						Map: ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(texturePath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1),
-					}
-				}
+				materials[materialPathId] = MaterialConfig{}
 
 				if materialConfig, ok := materials[materialPathId]; ok {
+					if texturePath != "" {
+						mapUrlPath := ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(texturePath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1)
+						materialConfig.Map = &mapUrlPath
+					}
+
 					if emissionMapPath != "" {
 						emissionMapUrl := ctx.BaseURL() + "/api/v0/AK/" + ctx.Params("server") + "/" + ctx.Params("platform") + "/map3d/material/" + strings.Replace(strings.Replace(emissionMapPath, ".png", "", 1), "unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/", "", 1)
 						materialConfig.EmissionMap = &emissionMapUrl
