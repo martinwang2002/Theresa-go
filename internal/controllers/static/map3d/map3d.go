@@ -264,7 +264,8 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 									mainTexPathId := mainTexValue["m_Texture"].Map()["m_PathID"].String()
 
 									if mainTexPathId == "0" {
-										return nil, nil, fmt.Errorf("cannot find m_Texture")
+										continue
+										// return nil, nil, fmt.Errorf("cannot find m_Texture")
 									}
 
 									for _, resourceInPreloadDataFile := range resourcesInPreloadDataFile {
