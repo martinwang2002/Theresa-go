@@ -19,7 +19,7 @@ import (
 
 type StaticItemController struct {
 	fx.In
-	AkAbFs *akAbFs.AkAbFs
+	AkAbFs               *akAbFs.AkAbFs
 	StaticVersionService *staticVersionService.StaticVersionService
 }
 
@@ -48,11 +48,17 @@ func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
 	}
 
 	items := itemTableJson["items"].Map()
-	if !items[ctx.Params("itemId")].Exists() {
+
+	itemId := ctx.Params("itemId")
+
+	itemSpriteBackgroundName := ""
+
+	if items[itemId].Exists() {
+		itemSpriteBackgroundName = "sprite_item_r"
+	} else {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
-
-	item := items[ctx.Params("itemId")].Map()
+	item := items[itemId].Map()
 
 	if !item["rarity"].Exists() {
 		return ctx.SendStatus(fiber.StatusInternalServerError)
@@ -66,13 +72,33 @@ func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
 	rarityWithOffset := rarity + 1
 	rarityString := strconv.Itoa(int(rarityWithOffset))
 
-	spriteItemRXImageBytes, err := os.ReadFile(fmt.Sprintf("./item/sprite_item_r%s.png",rarityString ))
+	spriteItemRXImagePath := fmt.Sprintf("./item/%s%s.png", itemSpriteBackgroundName, rarityString)
+
+	spriteItemRXImageBytes, err := os.ReadFile(spriteItemRXImagePath)
 	if err != nil {
 		return err
 	}
 
 	// get item image
-	itemPath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/arts/items/icons/%s.png", strings.ToLower(iconId))
+	// load mapping from icon hub
+	iconHubAbJsonPath := staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/arts/items/icons/icon_hub.ab.json"
+
+	iconHubAbJson, err := c.AkAbFs.NewJsonObject(iconHubAbJsonPath)
+	if err != nil {
+		return err
+	}
+
+	iconHubKeys := iconHubAbJson.Get("icon_hub._keys").Array()
+	iconHubIndex := -1
+	for index, result := range iconHubKeys {
+		if result.Str == strings.ToLower(iconId) {
+			iconHubIndex = index
+			break
+		}
+	}
+
+	iconHubItemPath := iconHubAbJson.Get("icon_hub._values." + strconv.Itoa(iconHubIndex)).Str
+	itemPath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/%s.png", strings.ToLower(iconHubItemPath))
 
 	itemObject, err := c.AkAbFs.NewObject(itemPath)
 	if err != nil {
