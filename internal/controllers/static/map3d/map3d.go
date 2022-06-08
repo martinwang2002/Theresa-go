@@ -23,7 +23,7 @@ type StaticMap3DController struct {
 }
 
 func RegisterstaticMap3DController(appStaticApiV0AK *versioning.AppStaticApiV0AK, c StaticMap3DController) error {
-	appStaticApiV0AK.Get("/map3d/stage/:stageId/config", c.Map3DConfig)
+	appStaticApiV0AK.Get("/map3d/stage/:stageId/config", c.Map3DConfig).Name("map3d.rootScene.config")
 	appStaticApiV0AK.Get("/map3d/stage/:stageId/root_scene/obj", c.Map3DRootSceneObj).Name("map3d.rootScene.obj")
 	appStaticApiV0AK.Get("/map3d/stage/:stageId/root_scene/lightmap", c.Map3DRootSceneLightmap).Name("map3d.rootScene.lightmap")
 	appStaticApiV0AK.Get("/map3d/material/*", c.Map3DTextureMap).Name("map3d.material")
@@ -481,6 +481,30 @@ func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 
 	stageInfo := stages[ctx.Params("stageId")].Map()
 	levelId := stageInfo["levelId"].Str
+
+	battleMiscTableJson, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/battle/battle_misc_table.json")
+	if err != nil {
+		return err
+	}
+
+	if battleMiscTableJson.Get("levelScenePairs." + levelId).Exists() {
+		hookedLevelId := battleMiscTableJson.Get("levelScenePairs." + levelId + ".sceneId").Str
+
+		for stageId, stageInfo := range stages {
+			if stageInfo.Get("levelId").Str == hookedLevelId {
+				rootScenePath, err := ctx.GetRouteURL("map3d.rootScene.config", fiber.Map{
+					"server":   ctx.Params("server"),
+					"platform": ctx.Params("platform"),
+					"stageId":  stageId,
+				})
+				if err != nil {
+					return err
+				}
+				return ctx.Redirect(rootScenePath)
+			}
+		}
+		return ctx.SendStatus(fiber.StatusNotFound)
+	}
 
 	lowerLevelId := strings.ToLower(levelId)
 
