@@ -112,6 +112,7 @@ func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
 
 	itemImageBuf := new(bytes.Buffer)
 	itemImageBuf.ReadFrom(itemObjectIoReader)
+	defer itemObjectIoReader.Close()
 
 	// Add item image with rarity
 	spriteItemRXImage := bimg.NewImage(spriteItemRXImageBytes)

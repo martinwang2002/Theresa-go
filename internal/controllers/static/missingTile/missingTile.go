@@ -42,6 +42,7 @@ func (c *StaticMissingTileController) MissingTile(ctx *fiber.Ctx) error {
 
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(newObjectIoReader)
+	defer newObjectIoReader.Close()
 
 	encodedWebpBuffer, err := webpService.EncodeWebp(buf.Bytes(), 100)
 

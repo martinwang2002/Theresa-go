@@ -42,6 +42,7 @@ func (s *AkVersionService) LatestVersion(server string, platform string) (Versio
 	if err != nil {
 		return versionFileJson, err
 	}
+	defer versionFileIoReader.Close()
 
 	json.Unmarshal(versionFileBytes, &versionFileJson)
 	return versionFileJson, nil

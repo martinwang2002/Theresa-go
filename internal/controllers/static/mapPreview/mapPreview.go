@@ -107,6 +107,7 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(mapPreviewObjectIoReader)
+	defer mapPreviewObjectIoReader.Close()
 
 	// resize image to 16:9 ratio
 	resizedImage, err := bimg.NewImage(buf.Bytes()).Process(bimg.Options{

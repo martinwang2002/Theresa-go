@@ -208,6 +208,7 @@ func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer ObjectIoReader.Close()
 
 	gjsonResult := gjson.ParseBytes(ObjectIoReaderBytes)
 
