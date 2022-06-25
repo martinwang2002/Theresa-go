@@ -3,9 +3,11 @@ package akAbFs
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	pathLib "path"
+	"sort"
 
 	backendDrive "github.com/rclone/rclone/backend/drive"
 	localDrive "github.com/rclone/rclone/backend/local"
@@ -213,4 +215,53 @@ func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 	gjsonResult := gjson.ParseBytes(ObjectIoReaderBytes)
 
 	return &gjsonResult, nil
+}
+
+func (akAbFs *AkAbFs) NewObjectSmart(server string, platform string, path string) (fs.Object, error) {
+	// try load object file first
+
+	// load version file
+	versionFileJson, err := akAbFs.NewJsonObject(fmt.Sprintf("AK/%s/%s/version.json", server, platform))
+	if err != nil {
+		return nil, err
+	}
+
+	resVersion := versionFileJson.Map()["resVersion"].Str
+
+	localObjectPath := fmt.Sprintf("AK/%s/%s/assets/%s/%s", server, platform, resVersion, path)
+
+	localNewObject, err := akAbFs.localNewObject(localObjectPath)
+
+	if err == nil {
+		return localNewObject, nil
+	}
+
+	// load from google drive
+
+	// list dirs
+	dirEntries, err := akAbFs.List(fmt.Sprintf("AK/%s/%s/assets", server, platform))
+
+	if err != nil {
+		return nil, err
+	}
+
+	folders := make([]string, 0)
+	for _, dirEntry := range dirEntries {
+		if dirEntry.IsDir && dirEntry.Name != resVersion && dirEntry.Name[:5] != "_next" {
+			folders = append(folders, dirEntry.Name)
+		}
+	}
+
+	// sort folders in decending order
+	sort.Sort(sort.Reverse(sort.StringSlice(folders)))
+
+	for _, resVersion := range folders {
+		googleDriveObjectPath := fmt.Sprintf("AK/%s/%s/assets/%s/%s", server, platform, resVersion, path)
+
+		googleDriveNewObject, err := akAbFs.googleDriveNewObject(googleDriveObjectPath)
+		if err == nil {
+			return googleDriveNewObject, nil
+		}
+	}
+	return nil, err
 }
