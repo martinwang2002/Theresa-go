@@ -62,9 +62,9 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 
 	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
 
-	mapPreviewPath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/arts/ui/stage/mappreviews/%s.png", ctx.Params("mapId"))
+	mapPreviewPath := fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/arts/ui/stage/mappreviews/%s.png", ctx.Params("mapId"))
 
-	mapPreviewObject, err := c.AkAbFs.NewObject(mapPreviewPath)
+	mapPreviewObject, err := c.AkAbFs.NewObject(staticProdVersionPath + mapPreviewPath)
 	if err != nil {
 		stageTablePath := staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/stage_table.json"
 		stageTableJsonResult, err := c.AkAbFs.NewJsonObject(stageTablePath)
@@ -72,8 +72,12 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 			return ctx.SendStatus(fiber.StatusInternalServerError)
 		}
 		levelId := stageTableJsonResult.Get(fmt.Sprintf("stages.%s.levelId", ctx.Params("mapId"))).Str
+
 		if levelId == "" {
-			return ctx.SendStatus(fiber.StatusNotFound)
+
+			if err != nil {
+				return ctx.SendStatus(fiber.StatusNotFound)
+			}
 		}
 
 		battleMiscTablePath := staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/battle/battle_misc_table.json"
@@ -84,20 +88,25 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 
 		hookedMapPreviewId := battleMiscTableJsonResult.Get(fmt.Sprintf("levelScenePairs.%s.hookedMapPreviewId", levelId)).Str
 		if hookedMapPreviewId == "" {
-			return ctx.SendStatus(fiber.StatusNotFound)
-		}
+			// try smart route
+			mapPreviewObject, err = c.AkAbFs.NewObjectSmart(ctx.Params("server"), ctx.Params("platform"), mapPreviewPath)
 
-		mainMapIdUrl, err := ctx.GetRouteURL("map.preview", fiber.Map{
-			"server":   ctx.Params("server"),
-			"platform": ctx.Params("platform"),
-			"mapId":    hookedMapPreviewId,
-			"width":    width,
-			"quality":  quality,
-		})
-		if err != nil {
-			return err
+			if err != nil {
+				return ctx.SendStatus(fiber.StatusNotFound)
+			}
+		} else {
+			mainMapIdUrl, err := ctx.GetRouteURL("map.preview", fiber.Map{
+				"server":   ctx.Params("server"),
+				"platform": ctx.Params("platform"),
+				"mapId":    hookedMapPreviewId,
+				"width":    width,
+				"quality":  quality,
+			})
+			if err != nil {
+				return err
+			}
+			return ctx.Redirect(mainMapIdUrl)
 		}
-		return ctx.Redirect(mainMapIdUrl)
 	}
 
 	mapPreviewObjectIoReader, err := mapPreviewObject.Open(context.Background())

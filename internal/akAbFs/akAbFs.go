@@ -8,6 +8,7 @@ import (
 	"os"
 	pathLib "path"
 	"sort"
+	"strings"
 
 	backendDrive "github.com/rclone/rclone/backend/drive"
 	localDrive "github.com/rclone/rclone/backend/local"
@@ -218,6 +219,10 @@ func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 }
 
 func (akAbFs *AkAbFs) NewObjectSmart(server string, platform string, path string) (fs.Object, error) {
+	path = strings.ReplaceAll(path, "//", "/")
+	// remove starting /
+	path = strings.TrimPrefix(path, "/")
+
 	// try load object file first
 
 	// load version file
@@ -263,5 +268,5 @@ func (akAbFs *AkAbFs) NewObjectSmart(server string, platform string, path string
 			return googleDriveNewObject, nil
 		}
 	}
-	return nil, err
+	return nil, fmt.Errorf("object not found")
 }
