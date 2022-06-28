@@ -5,6 +5,7 @@ import (
 
 	"theresa-go/internal/akAbFs"
 	"theresa-go/internal/controllers/s3"
+	"theresa-go/internal/controllers/static/audio"
 	"theresa-go/internal/controllers/static/item"
 	"theresa-go/internal/controllers/static/map3d"
 	"theresa-go/internal/controllers/static/mapPreview"
@@ -33,6 +34,7 @@ func ProvideOptions(includeSwagger bool) []fx.Option {
 			// s3
 			s3AkAbController.RegisterS3AkController,
 			// static
+			staticAudioController.RegisterAudioController,
 			staticItemController.RegisterStaticItemController,
 			staticMap3DController.RegisterstaticMap3DController,
 			staticMapPreviewController.RegisterStaticMapPreviewController,
