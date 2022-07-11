@@ -34,7 +34,9 @@ func CreateS3VersioningEndpoints(appS3 *httpserver.AppS3) (*AppS3ApiV0, *AppS3Ap
 func CreateStaticVersioningEndpoints(appStatic *httpserver.AppStatic) (*AppStaticApiV0, *AppStaticApiV0AK) {
 	appStaticApiV0 := appStatic.Group("/api/v0")
 
-	appStaticApiV0.Use(cors.New())
+	appStaticApiV0.Use(cors.New(cors.Config{
+		AllowOrigins: "https://theresa.wiki",
+	}))
 
 	appStaticApiV0AK := appStaticApiV0.Group("/AK/:server/:platform")
 
