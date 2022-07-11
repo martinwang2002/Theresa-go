@@ -188,7 +188,7 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 
 		for subMeshIndex := int64(0); subMeshIndex < subMeshCount; subMeshIndex++ {
 			subMesh := firstSubMesh + subMeshIndex
-			if int(subMesh) > len(meshConfigs) {
+			if int(subMesh) >= len(meshConfigs) {
 				meshConfigs = append(meshConfigs, make([]MeshConfig, int(subMesh)-len(meshConfigs)+1)...)
 			}
 
