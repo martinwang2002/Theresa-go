@@ -11,6 +11,7 @@ import (
 	"theresa-go/internal/controllers/static/mapPreview"
 	"theresa-go/internal/controllers/static/missingTile"
 	"theresa-go/internal/controllers/static/site"
+	"theresa-go/internal/config"
 	"theresa-go/internal/server/httpserver"
 	"theresa-go/internal/server/versioning"
 	"theresa-go/internal/service/akVersionService"
@@ -20,6 +21,8 @@ import (
 func ProvideOptions(includeSwagger bool) []fx.Option {
 	opts := []fx.Option{
 		fx.Provide(
+			// configs
+			config.Parse,
 			// fiber.App
 			httpserver.CreateHttpServer,
 			versioning.CreateS3VersioningEndpoints,

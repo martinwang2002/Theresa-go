@@ -6,6 +6,7 @@ require (
 	github.com/gofiber/fiber/v2 v2.32.0
 	github.com/h2non/bimg v1.1.9
 	github.com/joho/godotenv v1.4.0
+	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/rclone/rclone v1.58.0
 	github.com/tidwall/gjson v1.14.1
 	go.uber.org/fx v1.17.1

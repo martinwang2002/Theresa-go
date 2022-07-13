@@ -1,10 +1,17 @@
 package httpserver
 
 import (
+	"fmt"
+	"os"
+	"runtime"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/pprof"
+	"github.com/gofiber/fiber/v2/middleware/recover"
+
+	"theresa-go/internal/config"
 )
 
 type (
@@ -21,8 +28,7 @@ type AppStatic struct {
 	*fiber.App
 }
 
-// func CreateHttpServer() *fiber.App{
-func CreateHttpServer() (*fiber.App, *AppS3, *AppStatic) {
+func CreateHttpServer(conf *config.Config) (*fiber.App, *AppS3, *AppStatic) {
 	// Hosts
 	SubdomainFibers := map[string]*SubdomainFiber{}
 
@@ -49,7 +55,24 @@ func CreateHttpServer() (*fiber.App, *AppS3, *AppStatic) {
 	})
 
 	// Server
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		// Override default error handler
+		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
+
+			fmt.Printf("Error Handler")
+			// Status code defaults to 500
+			code := fiber.StatusInternalServerError
+
+			// Retrieve the custom status code if it's an fiber.*Error
+			if e, ok := err.(*fiber.Error); ok {
+				code = e.Code
+			}
+
+			
+
+			return ctx.Status(code).SendString("Internal Server Error")
+		},
+	})
 
 	// Logging middleware
 	app.Use(logger.New(logger.Config{
@@ -70,6 +93,20 @@ func CreateHttpServer() (*fiber.App, *AppS3, *AppStatic) {
 			return nil
 		}
 	})
+
+	app.Use(recover.New(recover.Config{
+		EnableStackTrace: true,
+		StackTraceHandler: func(ctx *fiber.Ctx, e any) {
+			buf := make([]byte, 4096)
+			buf = buf[:runtime.Stack(buf, false)]
+			_, _ = os.Stderr.WriteString(fmt.Sprintf("panic: %v\n%s\n", e, buf))
+		},
+	}))
+
+	if conf.DevMode {
+		appS3.Use(pprof.New())
+		appStatic.Use(pprof.New())
+	}
 
 	// return app
 	return app, &AppS3{appS3}, &AppStatic{appStatic}
