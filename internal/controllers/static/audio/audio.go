@@ -1,10 +1,12 @@
 package staticAudioController
 
 import (
+	"bytes"
 	"context"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	ffmpeg "github.com/u2takey/ffmpeg-go"
 	"go.uber.org/fx"
 
 	"theresa-go/internal/akAbFs"
@@ -23,11 +25,11 @@ func RegisterAudioController(appStaticApiV0AK *versioning.AppStaticApiV0AK, c St
 
 func (c *StaticAudioController) Audio(ctx *fiber.Ctx) error {
 	audioPath := ctx.Params("*")
-	if !strings.HasSuffix(audioPath, ".wav") {
+	if !strings.HasSuffix(audioPath, ".ogg") {
 		return ctx.SendStatus(fiber.StatusBadRequest)
 	}
 
-	audioPath = strings.ToLower(audioPath)
+	audioPath = strings.Replace(strings.ToLower(audioPath), ".ogg", ".wav", -1)
 
 	audioObject, err := c.AkAbFs.NewObjectSmart(ctx.Params("server"), ctx.Params("platform"), "/unpacked_assetbundle/assets/torappu/dynamicassets/audio/"+audioPath)
 
@@ -41,7 +43,26 @@ func (c *StaticAudioController) Audio(ctx *fiber.Ctx) error {
 		return err
 	}
 
-	ctx.Set("Content-Type", "audio/wav")
+	flacBuf := bytes.NewBuffer(nil)
+	err = ffmpeg.
+		Input("pipe:", ffmpeg.KwArgs{
+			"loglevel": "quiet",
+		}).
+		Output("pipe:", ffmpeg.KwArgs{
+			// audio bitrate
+			"ab": "64k",
+			// audio format to Opus Interactive Audio Codec (igg)
+			"format": "ogg",
+		}).
+		WithInput(audioObjectIoReader).
+		WithOutput(flacBuf).
+		ErrorToStdOut().
+		Run()
+	if err != nil {
+		panic(err)
+	}
 
-	return ctx.SendStream(audioObjectIoReader)
+	ctx.Set("Content-Type", "audio/ogg")
+
+	return ctx.SendStream(flacBuf)
 }

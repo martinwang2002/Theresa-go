@@ -9,6 +9,7 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/rclone/rclone v1.59.0
 	github.com/tidwall/gjson v1.14.1
+	github.com/u2takey/ffmpeg-go v0.4.1
 	go.uber.org/fx v1.17.1
 )
 
@@ -31,6 +32,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
 	github.com/googleapis/gax-go/v2 v2.4.0 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jzelinskie/whirlpool v0.0.0-20201016144138-0675e54bb004 // indirect
 	github.com/klauspost/compress v1.15.7 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220517141722-cf486979b281 // indirect
@@ -54,6 +56,7 @@ require (
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.5.0 // indirect
+	github.com/u2takey/go-utils v0.3.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.38.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect

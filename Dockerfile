@@ -3,7 +3,8 @@ RUN apk update && apk --no-cache add \
     build-base \
     ca-certificates \
     git \
-    vips-dev
+    vips-dev \
+    ffmpeg
 WORKDIR /app
 COPY go.mod .
 COPY go.sum .
@@ -14,7 +15,8 @@ RUN go build .
 FROM alpine:latest
 RUN apk update && apk --no-cache add \
     ca-certificates \
-    vips-dev
+    vips-dev \
+    ffmpeg
 WORKDIR /app
 COPY --from=builder /app ./
 EXPOSE 8000
