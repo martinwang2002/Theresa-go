@@ -436,6 +436,7 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 }
 
 func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
+	stageId := strings.ReplaceAll(ctx.Params("stageId"), "__", "#")
 
 	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
 
@@ -453,7 +454,7 @@ func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 	}
 
 	stages := stageTableJson["stages"].Map()
-	if !stages[ctx.Params("stageId")].Exists() {
+	if !stages[stageId].Exists() {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
 
@@ -479,7 +480,7 @@ func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 	rootSceneObjUrl := ctx.BaseURL() + rootSceneObjPath
 	// rootSceneLightmapUrl := ctx.BaseURL() + rootSceneLightmapPath
 
-	stageInfo := stages[ctx.Params("stageId")].Map()
+	stageInfo := stages[stageId].Map()
 	levelId := stageInfo["levelId"].Str
 
 	battleMiscTableJson, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/battle/battle_misc_table.json")
