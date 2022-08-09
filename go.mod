@@ -1,16 +1,16 @@
 module theresa-go
 
-go 1.18
+go 1.19
 
 require (
-	github.com/gofiber/fiber/v2 v2.35.0
+	github.com/gofiber/fiber/v2 v2.36.0
 	github.com/h2non/bimg v1.1.9
 	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0
-	github.com/rclone/rclone v1.59.0
-	github.com/tidwall/gjson v1.14.1
+	github.com/rclone/rclone v1.59.1
+	github.com/tidwall/gjson v1.14.2
 	github.com/u2takey/ffmpeg-go v0.4.1
-	go.uber.org/fx v1.17.1
+	go.uber.org/fx v1.18.1
 )
 
 require (
@@ -63,7 +63,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	go.uber.org/dig v1.14.1 // indirect
+	go.uber.org/dig v1.15.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
 	go.uber.org/zap v1.21.0 // indirect
 	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d // indirect
