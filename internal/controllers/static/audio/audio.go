@@ -24,14 +24,16 @@ func RegisterAudioController(appStaticApiV0AK *versioning.AppStaticApiV0AK, c St
 }
 
 func (c *StaticAudioController) Audio(ctx *fiber.Ctx) error {
-	audioPath := ctx.Params("*")
-	if !strings.HasSuffix(audioPath, ".ogg") {
+	audioPath := strings.ToLower(ctx.Params("*"))
+	if !(strings.HasSuffix(audioPath, ".ogg") || strings.HasSuffix(audioPath, ".mp3")) {
 		return ctx.SendStatus(fiber.StatusBadRequest)
 	}
 
-	audioPath = strings.Replace(strings.ToLower(audioPath), ".ogg", ".wav", -1)
+	indexOfDot := strings.LastIndex(audioPath, ".")
+	audioFilePath := audioPath[:indexOfDot]+".wav"
+	audioFileExtension := audioPath[indexOfDot+1:]
 
-	audioObject, err := c.AkAbFs.NewObjectSmart(ctx.Params("server"), ctx.Params("platform"), "/unpacked_assetbundle/assets/torappu/dynamicassets/audio/"+audioPath)
+	audioObject, err := c.AkAbFs.NewObjectSmart(ctx.Params("server"), ctx.Params("platform"), "/unpacked_assetbundle/assets/torappu/dynamicassets/audio/"+audioFilePath)
 
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
@@ -43,7 +45,7 @@ func (c *StaticAudioController) Audio(ctx *fiber.Ctx) error {
 		return err
 	}
 
-	flacBuf := bytes.NewBuffer(nil)
+	ffmpegBuffer := bytes.NewBuffer(nil)
 	err = ffmpeg.
 		Input("pipe:", ffmpeg.KwArgs{
 			"loglevel": "quiet",
@@ -52,17 +54,17 @@ func (c *StaticAudioController) Audio(ctx *fiber.Ctx) error {
 			// audio bitrate
 			"ab": "64k",
 			// audio format to Opus Interactive Audio Codec (igg)
-			"format": "ogg",
+			"format": audioFileExtension,
 		}).
 		WithInput(audioObjectIoReader).
-		WithOutput(flacBuf).
+		WithOutput(ffmpegBuffer).
 		ErrorToStdOut().
 		Run()
 	if err != nil {
 		panic(err)
 	}
 
-	ctx.Set("Content-Type", "audio/ogg")
+	ctx.Set("Content-Type", "audio/"+audioFileExtension)
 
-	return ctx.SendStream(flacBuf)
+	return ctx.SendStream(ffmpegBuffer)
 }
