@@ -1,15 +1,20 @@
 package akAbFs
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	pathLib "path"
 	"sort"
 	"strings"
 
+	"github.com/allegro/bigcache/v3"
+	"github.com/eko/gocache/v3/cache"
+	"github.com/eko/gocache/v3/store"
 	backendDrive "github.com/rclone/rclone/backend/drive"
 	localDrive "github.com/rclone/rclone/backend/local"
 	"github.com/rclone/rclone/fs"
@@ -22,6 +27,7 @@ type AkAbFs struct {
 	akAbFsContext context.Context
 	googleDriveFs fs.Fs
 	localFs       fs.Fs
+	cacheManager  *cache.Cache[[]byte]
 }
 
 func NewAkAbFs() *AkAbFs {
@@ -34,10 +40,18 @@ func NewAkAbFs() *AkAbFs {
 	if err != nil {
 		panic(err)
 	}
+	bigcacheClient, _ := bigcache.NewBigCache(bigcache.Config{
+		Verbose: false,
+	})
+	bigcacheStore := store.NewBigcache(bigcacheClient)
+
+	cacheManager := cache.New[[]byte](bigcacheStore)
+
 	return &AkAbFs{
 		akAbFsContext: akAbFsContext,
 		googleDriveFs: googleDriveFs,
 		localFs:       localFs,
+		cacheManager:  cacheManager,
 	}
 }
 
@@ -135,6 +149,19 @@ type JsonDirEntry struct {
 }
 
 func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
+	// use cache if available
+	cachedEntriesBytes, err := akAbFs.cacheManager.Get(akAbFs.akAbFsContext, "List"+path)
+	if err == nil {
+		var buffer bytes.Buffer
+		buffer.Write(cachedEntriesBytes)
+		var cachedEntries JsonDirEntries
+		err = gob.NewDecoder(&buffer).Decode(&cachedEntries)
+		if err == nil {
+			return cachedEntries, err
+		}
+	}
+
+	// load entries
 	entries, err := akAbFs.list(path)
 	if err != nil {
 		return nil, err
@@ -155,7 +182,13 @@ func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
 			}
 		default:
 		}
+	}
 
+	// set cache
+	var buffer bytes.Buffer
+	err = gob.NewEncoder(&buffer).Encode(jsonEntries)
+	if err == nil {
+		akAbFs.cacheManager.Set(akAbFs.akAbFsContext, "List"+path, buffer.Bytes())
 	}
 	return jsonEntries, nil
 }
@@ -195,6 +228,14 @@ func (akAbFs *AkAbFs) NewObject(path string) (fs.Object, error) {
 }
 
 func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
+	// use cache if available
+	cachedNewJsonObjectBytes, err := akAbFs.cacheManager.Get(akAbFs.akAbFsContext, "NewJsonObject"+path)
+	if err == nil {
+		gjsonResult := gjson.ParseBytes(cachedNewJsonObjectBytes)
+
+		return &gjsonResult, nil
+	}
+
 	Object, err := akAbFs.NewObject(path)
 
 	if err != nil {
@@ -207,12 +248,14 @@ func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 		return nil, err
 	}
 
-	ObjectIoReaderBytes, err := ioutil.ReadAll(ObjectIoReader)
+	ObjectIoReaderBytes, err := io.ReadAll(ObjectIoReader)
 	if err != nil {
 		return nil, err
 	}
 	defer ObjectIoReader.Close()
 
+	akAbFs.cacheManager.Set(akAbFs.akAbFsContext, "NewJsonObject"+path, ObjectIoReaderBytes)
+	
 	gjsonResult := gjson.ParseBytes(ObjectIoReaderBytes)
 
 	return &gjsonResult, nil
