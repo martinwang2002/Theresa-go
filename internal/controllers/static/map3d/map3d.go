@@ -527,6 +527,7 @@ func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 }
 
 func (c *StaticMap3DController) Map3DRootSceneObj(ctx *fiber.Ctx) error {
+	stageId := strings.ReplaceAll(ctx.Params("stageId"), "__", "#")
 
 	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
 
@@ -544,11 +545,11 @@ func (c *StaticMap3DController) Map3DRootSceneObj(ctx *fiber.Ctx) error {
 	}
 
 	stages := stageTableJson["stages"].Map()
-	if !stages[ctx.Params("stageId")].Exists() {
+	if !stages[stageId].Exists() {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
 
-	stageInfo := stages[ctx.Params("stageId")].Map()
+	stageInfo := stages[stageId].Map()
 
 	levelId := stageInfo["levelId"].Str
 
@@ -560,6 +561,7 @@ func (c *StaticMap3DController) Map3DRootSceneObj(ctx *fiber.Ctx) error {
 
 	newObject, err := c.AkAbFs.NewObject(mapPreviewPath)
 	if err != nil {
+		fmt.Println(err)
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
 	newObjectIoReader, err := newObject.Open(context.Background())
@@ -570,6 +572,8 @@ func (c *StaticMap3DController) Map3DRootSceneObj(ctx *fiber.Ctx) error {
 }
 
 func (c *StaticMap3DController) Map3DRootSceneLightmap(ctx *fiber.Ctx) error {
+	stageId := strings.ReplaceAll(ctx.Params("stageId"), "__", "#")
+
 	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
 
 	stageTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/stage_table.json")
@@ -586,11 +590,11 @@ func (c *StaticMap3DController) Map3DRootSceneLightmap(ctx *fiber.Ctx) error {
 	}
 
 	stages := stageTableJson["stages"].Map()
-	if !stages[ctx.Params("stageId")].Exists() {
+	if !stages[stageId].Exists() {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
 
-	stageInfo := stages[ctx.Params("stageId")].Map()
+	stageInfo := stages[stageId].Map()
 
 	levelId := stageInfo["levelId"].Str
 
