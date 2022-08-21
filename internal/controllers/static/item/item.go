@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/draw"
+	"image/png"
 	"os"
 	"strconv"
 	"strings"
@@ -24,23 +27,87 @@ type StaticItemController struct {
 }
 
 func RegisterStaticItemController(appStaticApiV0AK *versioning.AppStaticApiV0AK, c StaticItemController) error {
-	appStaticApiV0AK.Get("/item/:itemId", c.ItemImage)
+	appStaticApiV0AK.Get("/item/id/:itemId", c.ItemImage)
+	appStaticApiV0AK.Get("/item/sprite", c.Sprite)
 	return nil
 }
 
-func (c *StaticItemController) getItemFromItemTable(itemId string, staticProdVersionPath string) (string, int64, int, []byte, error) {
+type Offset struct {
+	X int
+	Y int
+}
+
+func (c *StaticItemController) getItemOffsetByRootPackingTag(iconId string, rootPackingTag string, staticProdVersionPath string) (Offset, error) {
+	var offset Offset
+
+	// find in sprite folder
+	spritesFolderItems, err := c.AkAbFs.List(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/spritepack")
+	if err != nil {
+		return offset, err
+	}
+
+	for _, spriteFolderItem := range spritesFolderItems {
+		if !spriteFolderItem.IsDir && strings.HasPrefix(spriteFolderItem.Name, strings.ToLower(rootPackingTag)) {
+
+			abJson, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/spritepack/" + spriteFolderItem.Name)
+
+			if err != nil {
+				continue
+			}
+			if abJson.Get("*" + iconId + ".m_RD.textureRectOffset").Exists() {
+				offset = Offset{
+					X: int(abJson.Get("*" + iconId + ".m_RD.textureRectOffset.x").Int()),
+					Y: int(abJson.Get("*" + iconId + ".m_RD.textureRectOffset.y").Int()),
+				}
+				return offset, nil
+			}
+		}
+	}
+
+	// find in acitivity
+	activityFolderItems, err := c.AkAbFs.List(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/activity")
+	if err != nil {
+		return offset, err
+	}
+
+	for _, spriteFolderItem := range activityFolderItems {
+		if !spriteFolderItem.IsDir && strings.HasPrefix(spriteFolderItem.Name, "commonassets") {
+			abJson, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/activity/" + spriteFolderItem.Name)
+			if err != nil {
+				continue
+			}
+			if abJson.Get("*" + iconId + ".m_RD.textureRectOffset").Exists() {
+				offset = Offset{
+					X: int(abJson.Get("*" + iconId + ".m_RD.textureRectOffset.x").Int()),
+					Y: int(abJson.Get("*" + iconId + ".m_RD.textureRectOffset.y").Int()),
+				}
+				return offset, nil
+			}
+		}
+	}
+	return offset, fmt.Errorf("no offset found for %s", iconId)
+}
+
+type IconInfo struct {
+	ItemSpriteBackgroundName string
+	Rarity                   int
+	Offset                   Offset
+	ItemImage                image.Image
+}
+
+func (c *StaticItemController) getItemFromItemTable(itemId string, staticProdVersionPath string) (IconInfo, error) {
 	// get item info starts
 	itemTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/item_table.json")
 
 	itemTableJsonResult, err := c.AkAbFs.NewJsonObject(itemTableJsonPath)
 	if err != nil {
-		return "", 0, 0, nil, err
+		return IconInfo{}, err
 	}
 
 	itemTableJson := itemTableJsonResult.Map()
 
 	if !itemTableJson["items"].Exists() {
-		return "", 0, 0, nil, fmt.Errorf("item table json does not contain item %s", itemId)
+		return IconInfo{}, fmt.Errorf("item table json does not contain items")
 	}
 
 	items := itemTableJson["items"].Map()
@@ -50,12 +117,12 @@ func (c *StaticItemController) getItemFromItemTable(itemId string, staticProdVer
 	if items[itemId].Exists() {
 		itemSpriteBackgroundName = "sprite_item_r"
 	} else {
-		return "", 0, 0, nil, fmt.Errorf("item table json does not contain item %s", itemId)
+		return IconInfo{}, fmt.Errorf("item table json does not contain item %s", itemId)
 	}
 	item := items[itemId].Map()
 
 	if !item["rarity"].Exists() {
-		return "", 0, 0, nil, fmt.Errorf("item table json does not contain item %s rarity", itemId)
+		return IconInfo{}, fmt.Errorf("item table json does not contain item %s rarity", itemId)
 	}
 
 	rarity := item["rarity"].Int() + 1 // rarity in item has offset of 1
@@ -67,20 +134,17 @@ func (c *StaticItemController) getItemFromItemTable(itemId string, staticProdVer
 	// load mapping from icon hub
 	var iconHubAbJsonPath string
 	var iconHubKey string
-	var verticalOffset int
 
 	if itemType == "ACTIVITY_ITEM" {
 		iconHubAbJsonPath = staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/activity/commonassets.ab.json"
 		iconHubKey = "act_item_hub"
-		verticalOffset = 17
 	} else {
 		iconHubAbJsonPath = staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/arts/items/icons/icon_hub.ab.json"
 		iconHubKey = "icon_hub"
-		verticalOffset = 0
 	}
 	iconHubAbJson, err := c.AkAbFs.NewJsonObject(iconHubAbJsonPath)
 	if err != nil {
-		return "", 0, 0, nil, err
+		return IconInfo{}, err
 	}
 
 	iconHubKeys := iconHubAbJson.Get(iconHubKey + "._keys").Array()
@@ -97,45 +161,62 @@ func (c *StaticItemController) getItemFromItemTable(itemId string, staticProdVer
 
 	itemObject, err := c.AkAbFs.NewObject(itemPath)
 	if err != nil {
-		return "", 0, 0, nil, err
+		return IconInfo{}, err
 	}
 
 	itemObjectIoReader, err := itemObject.Open(context.Background())
 	if err != nil {
-		return "", 0, 0, nil, err
+		return IconInfo{}, err
 	}
 
-	itemImageBuf := new(bytes.Buffer)
-	itemImageBuf.ReadFrom(itemObjectIoReader)
-	defer itemObjectIoReader.Close()
+	// get offset defined in sprite?
+	rootPackingTag := iconHubAbJson.Get("icon_hub._rootPackingTag").Str
 
-	return itemSpriteBackgroundName, rarity, verticalOffset, itemImageBuf.Bytes(), nil
+	offset, err := c.getItemOffsetByRootPackingTag(iconId, rootPackingTag, staticProdVersionPath)
+
+	if err != nil {
+		return IconInfo{}, err
+	}
+
+	itemImage, _, err := image.Decode(itemObjectIoReader)
+	if err != nil {
+		return IconInfo{}, err
+	}
+
+	offset.Y = 181 - itemImage.Bounds().Max.Y - offset.Y
+
+	return IconInfo{
+		ItemSpriteBackgroundName: itemSpriteBackgroundName,
+		Rarity:                   int(rarity),
+		Offset:                   offset,
+		ItemImage:                itemImage,
+	}, nil
 }
 
-func (c *StaticItemController) getFurniFromBuildingData(itemId string, staticProdVersionPath string) (string, int64, int, []byte, error) {
+func (c *StaticItemController) getFurniFromBuildingData(itemId string, staticProdVersionPath string) (IconInfo, error) {
 	// get building data
 	buildingDataJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/building_data.json")
 
 	buildingDataJsonResult, err := c.AkAbFs.NewJsonObject(buildingDataJsonPath)
 
 	if err != nil {
-		return "", 0, 0, nil, err
+		return IconInfo{}, err
 	}
 
 	furnitures := buildingDataJsonResult.Get("customData.furnitures").Map()
 
-	itemSpriteBackgroundName := ""
+	var itemSpriteBackgroundName string
 
 	if furnitures[itemId].Exists() {
 		itemSpriteBackgroundName = "sprite_furni_r"
 	} else {
-		return "", 0, 0, nil, err
+		return IconInfo{}, err
 	}
 
 	item := furnitures[itemId].Map()
 
 	if !item["rarity"].Exists() {
-		return "", 0, 0, nil, err
+		return IconInfo{}, err
 	}
 
 	rarity := item["rarity"].Int()
@@ -148,7 +229,7 @@ func (c *StaticItemController) getFurniFromBuildingData(itemId string, staticPro
 
 	furniHubAbJson, err := c.AkAbFs.NewJsonObject(furniHubAbJsonPath)
 	if err != nil {
-		return "", 0, 0, nil, err
+		return IconInfo{}, err
 	}
 
 	iconHubKeys := furniHubAbJson.Get("furni_icon_hub._keys").Array()
@@ -165,29 +246,81 @@ func (c *StaticItemController) getFurniFromBuildingData(itemId string, staticPro
 
 	itemObject, err := c.AkAbFs.NewObject(itemPath)
 	if err != nil {
-		return "", 0, 0, nil, err
+		return IconInfo{}, err
 	}
 
 	itemObjectIoReader, err := itemObject.Open(context.Background())
 	if err != nil {
-		return "", 0, 0, nil, err
+		return IconInfo{}, err
 	}
 
 	itemImageBuf := new(bytes.Buffer)
 	itemImageBuf.ReadFrom(itemObjectIoReader)
 	defer itemObjectIoReader.Close()
-
 	itemImage := bimg.NewImage(itemImageBuf.Bytes())
-
 	itemImageZoomed, err := itemImage.Process(bimg.Options{
-		// Width: 153,
-		Width:  150,
-		Height: 112,
+		Width:  151, // 226/1.5
+		Height: 113, // 169/1.5
 	})
 	if err != nil {
-		return "", 0, 0, nil, err
+		return IconInfo{}, err
 	}
-	return itemSpriteBackgroundName, rarity, 0, itemImageZoomed, nil
+
+	itemImageZoomedImage, _, err := image.Decode(bytes.NewReader(itemImageZoomed))
+	if err != nil {
+		return IconInfo{}, err
+	}
+
+	return IconInfo{
+		ItemSpriteBackgroundName: itemSpriteBackgroundName,
+		Rarity:                   int(rarity),
+		Offset: Offset{
+			X: 13, // (181[image width]-153[sprite width])/2[center] - 1[offset]
+			Y: 30, // (181[image width]-85[sprite width])/2[center] - 1[offset] - 3[extra]
+		},
+		ItemImage: itemImageZoomedImage,
+	}, nil
+}
+
+func (c *StaticItemController) itemImage(itemId string, staticProdVersionPath string) (*image.RGBA, error) {
+	var err error
+	var iconInfo IconInfo
+
+	if strings.HasPrefix(itemId, "furni_") {
+		iconInfo, err = c.getFurniFromBuildingData(itemId, staticProdVersionPath)
+	} else {
+		iconInfo, err = c.getItemFromItemTable(itemId, staticProdVersionPath)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// get rarity image
+	rarityString := strconv.Itoa(int(iconInfo.Rarity))
+
+	spriteItemRXImagePath := fmt.Sprintf("./item/%s%s.png", iconInfo.ItemSpriteBackgroundName, rarityString)
+
+	spriteItemRXImageIoReader, err := os.Open(spriteItemRXImagePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add item image with rarity
+	spriteItemImage := image.NewRGBA(image.Rect(0, 0, 181, 181))
+	spriteItemRXImage, _, err := image.Decode(spriteItemRXImageIoReader)
+	if err != nil {
+		return nil, err
+	}
+	draw.Draw(spriteItemImage, image.Rect(0, 0, 181, 181), spriteItemRXImage, image.Point{0, 0}, draw.Over)
+	draw.Draw(spriteItemImage,
+		image.Rect(1+iconInfo.Offset.X, 1+iconInfo.Offset.Y, 181, 181),
+		iconInfo.ItemImage,
+		image.Point{0, 0},
+		draw.Over,
+	)
+
+	return spriteItemImage, err
 }
 
 func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
@@ -196,63 +329,24 @@ func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
 
 	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
 
-	var itemSpriteBackgroundName string
-	var rarity int64
-	var verticalOffset int
-	var itemImageBytes []byte
-	var err error
-
-	if strings.HasPrefix(itemId, "furni_") {
-		itemSpriteBackgroundName, rarity, verticalOffset, itemImageBytes, err = c.getFurniFromBuildingData(itemId, staticProdVersionPath)
-	} else {
-		itemSpriteBackgroundName, rarity, verticalOffset, itemImageBytes, err = c.getItemFromItemTable(itemId, staticProdVersionPath)
-	}
-
+	// get png image
+	itemImageWithBackGround, err := c.itemImage(itemId, staticProdVersionPath)
 	if err != nil {
 		return err
 	}
+	imageBuffer := new(bytes.Buffer)
+	png.Encode(imageBuffer, itemImageWithBackGround)
 
-	// get rarity image
-	rarityString := strconv.Itoa(int(rarity))
-
-	spriteItemRXImagePath := fmt.Sprintf("./item/%s%s.png", itemSpriteBackgroundName, rarityString)
-
-	spriteItemRXImageBytes, err := os.ReadFile(spriteItemRXImagePath)
-	if err != nil {
-		return err
-	}
-	// Add item image with rarity
-	spriteItemRXImage := bimg.NewImage(spriteItemRXImageBytes)
-	itemImage := bimg.NewImage(itemImageBytes)
-
-	// get sizes of images for center of watermark
-	spriteItemRXImageSize, err := spriteItemRXImage.Size()
-	if err != nil {
-		return err
-	}
-
-	itemImageSize, err := itemImage.Size()
-	if err != nil {
-		return err
-	}
-
-	// Add watermark
-	itemImageWithBackGround, err := spriteItemRXImage.Process(bimg.Options{
-		WatermarkImage: bimg.WatermarkImage{
-			// offset image to center
-			Left: (spriteItemRXImageSize.Width - itemImageSize.Width + 1) / 2,
-			Top:  verticalOffset + (spriteItemRXImageSize.Height - verticalOffset - itemImageSize.Height + 1) / 2,
-			Buf:     itemImageBytes,
-			Opacity: 1,
-		},
-		Quality: 100,
+	// convert to webp
+	itemWebpImage := bimg.NewImage(imageBuffer.Bytes())
+	itemWebpImageBytes, err := itemWebpImage.Process(bimg.Options{
+		Quality: 75,
 		Type:    bimg.WEBP,
 	})
+	ctx.Set("Content-Type", "image/webp")
 	if err != nil {
 		return err
 	}
 
-	ctx.Set("Content-Type", "image/webp")
-
-	return ctx.SendStream(bytes.NewReader(itemImageWithBackGround))
+	return ctx.SendStream(bytes.NewReader(itemWebpImageBytes))
 }
