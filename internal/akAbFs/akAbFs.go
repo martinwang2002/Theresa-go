@@ -21,6 +21,7 @@ import (
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/config/configmap"
 	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rs/zerolog/log"
 	"github.com/tidwall/gjson"
 )
 
@@ -43,10 +44,10 @@ func NewAkAbFs() *AkAbFs {
 	}
 	bigcacheClient, err := bigcache.NewBigCache(bigcache.Config{
 		// number of shards (must be a power of 2)
-		Shards: 1024,
+		Shards: 32,
 
 		// time after which entry can be evicted
-		LifeWindow: 2 * time.Minute,
+		LifeWindow: 5 * time.Minute,
 
 		// Interval between removing expired entries (clean up).
 		// If set to <= 0 then no action is performed.
@@ -54,7 +55,7 @@ func NewAkAbFs() *AkAbFs {
 		CleanWindow: 1 * time.Second,
 
 		// rps * lifeWindow, used only in initial memory allocation
-		MaxEntriesInWindow: 1000 * 10 * 60,
+		MaxEntriesInWindow: 10 * (5 * 60),
 
 		// max entry size in bytes, used only in initial memory allocation
 		MaxEntrySize: 500,
@@ -65,7 +66,7 @@ func NewAkAbFs() *AkAbFs {
 		// cache will not allocate more memory than this limit, value in MB
 		// if value is reached then the oldest entries can be overridden for the new ones
 		// 0 value means no size limit
-		HardMaxCacheSize: 128,
+		HardMaxCacheSize: 256,
 
 		// callback fired when the oldest entry is removed because of its expiration time or no space left
 		// for the new entry, or because delete was called. A bitmask representing the reason will be returned.
@@ -228,7 +229,7 @@ func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
 	if err == nil {
 		err = akAbFs.CacheManager.Set(akAbFs.akAbFsContext, "List"+path, buffer.Bytes())
 		if err != nil {
-			fmt.Println(err)
+			log.Error().Err(err).Msg("failed to set cache list")
 		}
 	}
 	return jsonEntries, nil
@@ -295,9 +296,11 @@ func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 	}
 	defer ObjectIoReader.Close()
 
+
+
 	err = akAbFs.CacheManager.Set(akAbFs.akAbFsContext, "NewJsonObject"+path, ObjectIoReaderBytes)
 	if err != nil {
-		fmt.Println(err)
+		log.Error().Err(err).Int("length",len(ObjectIoReaderBytes)).Str("path",path).Msg("failed to set cache")
 	}
 	gjsonResult := gjson.ParseBytes(ObjectIoReaderBytes)
 

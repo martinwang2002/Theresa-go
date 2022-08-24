@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/rs/zerolog/log"
+
 	"theresa-go/internal/akAbFs"
 )
 
@@ -52,20 +54,20 @@ func (s *AkVersionService) LatestVersion(server string, platform string) (Versio
 		if !bytes.Equal(prevVersionFileBytes, versionFileBytes) {
 			err := s.AkAbFs.CacheManager.GetCodec().Clear(context.Background())
 			if err != nil {
-				fmt.Println(err)
+				log.Error().Err(err).Msg("Failed to clear cache")
 			} else {
-				fmt.Println("big cache purged")
+				log.Info().Msg("In memory cache purged")
 			}
 
 			err = s.AkAbFs.CacheManager.Set(context.Background(), "LatestVersion"+server+platform, versionFileBytes)
 			if err != nil {
-				fmt.Println(err)
+				log.Error().Err(err).Msg("Failed to set cache")
 			}
 		}
 	} else {
 		err := s.AkAbFs.CacheManager.Set(context.Background(), "LatestVersion"+server+platform, versionFileBytes)
 		if err != nil {
-			fmt.Println(err)
+			log.Error().Err(err).Msg("Failed to set cache")
 		}
 	}
 

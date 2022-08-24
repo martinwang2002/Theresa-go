@@ -7,11 +7,12 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/rs/zerolog"
 
 	"theresa-go/internal/config"
+	"theresa-go/internal/middlewares/logger"
 )
 
 type (
@@ -54,12 +55,13 @@ func CreateHttpServer(conf *config.Config) (*fiber.App, *AppS3, *AppStatic) {
 		return ctx.SendStatus(fiber.StatusNoContent)
 	})
 
+	log := zerolog.New(os.Stdout)
+
 	// Server
 	app := fiber.New(fiber.Config{
 		// Override default error handler
 		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
 
-			fmt.Printf("Error Handler")
 			// Status code defaults to 500
 			code := fiber.StatusInternalServerError
 
@@ -68,17 +70,13 @@ func CreateHttpServer(conf *config.Config) (*fiber.App, *AppS3, *AppStatic) {
 				code = e.Code
 			}
 
-			
+			log.Error().Err(err).Msgf("%s %s", ctx.Method(), ctx.Path())
 
 			return ctx.Status(code).SendString("Internal Server Error")
 		},
 	})
 
-	// Logging middleware
-	app.Use(logger.New(logger.Config{
-		Format:     "[${time}] ${status} ${latency} ${method} ${host} ${path}\n",
-		TimeFormat: "2006-01-02T15:04:05-0700",
-	}))
+	app.Use(logger.Logger(&log))
 
 	// subdomain middleware
 	app.Use(func(ctx *fiber.Ctx) error {

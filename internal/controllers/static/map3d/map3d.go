@@ -561,7 +561,6 @@ func (c *StaticMap3DController) Map3DRootSceneObj(ctx *fiber.Ctx) error {
 
 	newObject, err := c.AkAbFs.NewObject(mapPreviewPath)
 	if err != nil {
-		fmt.Println(err)
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
 	newObjectIoReader, err := newObject.Open(context.Background())
