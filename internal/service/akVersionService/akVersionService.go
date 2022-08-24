@@ -1,10 +1,11 @@
 package akVersionService
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 
 	"theresa-go/internal/akAbFs"
 )
@@ -38,13 +39,36 @@ func (s *AkVersionService) LatestVersion(server string, platform string) (Versio
 	if err != nil {
 		return versionFileJson, err
 	}
-	versionFileBytes, err := ioutil.ReadAll(versionFileIoReader)
+	versionFileBytes, err := io.ReadAll(versionFileIoReader)
 	if err != nil {
 		return versionFileJson, err
 	}
 	defer versionFileIoReader.Close()
 
 	json.Unmarshal(versionFileBytes, &versionFileJson)
+
+	prevVersionFileBytes, err := s.AkAbFs.CacheManager.Get(context.Background(), "LatestVersion"+server+platform)
+	if err == nil {
+		if !bytes.Equal(prevVersionFileBytes, versionFileBytes) {
+			err := s.AkAbFs.CacheManager.GetCodec().Clear(context.Background())
+			if err != nil {
+				fmt.Println(err)
+			} else {
+				fmt.Println("big cache purged")
+			}
+
+			err = s.AkAbFs.CacheManager.Set(context.Background(), "LatestVersion"+server+platform, versionFileBytes)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	} else {
+		err := s.AkAbFs.CacheManager.Set(context.Background(), "LatestVersion"+server+platform, versionFileBytes)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+
 	return versionFileJson, nil
 }
 

@@ -28,7 +28,7 @@ type AkAbFs struct {
 	akAbFsContext context.Context
 	googleDriveFs fs.Fs
 	localFs       fs.Fs
-	cacheManager  *cache.Cache[[]byte]
+	CacheManager  *cache.Cache[[]byte]
 }
 
 func NewAkAbFs() *AkAbFs {
@@ -89,7 +89,7 @@ func NewAkAbFs() *AkAbFs {
 		akAbFsContext: akAbFsContext,
 		googleDriveFs: googleDriveFs,
 		localFs:       localFs,
-		cacheManager:  cacheManager,
+		CacheManager:  cacheManager,
 	}
 }
 
@@ -188,7 +188,7 @@ type JsonDirEntry struct {
 
 func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
 	// use cache if available
-	cachedEntriesBytes, err := akAbFs.cacheManager.Get(akAbFs.akAbFsContext, "List"+path)
+	cachedEntriesBytes, err := akAbFs.CacheManager.Get(akAbFs.akAbFsContext, "List"+path)
 	if err == nil {
 		var buffer bytes.Buffer
 		buffer.Write(cachedEntriesBytes)
@@ -226,7 +226,7 @@ func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
 	var buffer bytes.Buffer
 	err = gob.NewEncoder(&buffer).Encode(jsonEntries)
 	if err == nil {
-		err = akAbFs.cacheManager.Set(akAbFs.akAbFsContext, "List"+path, buffer.Bytes())
+		err = akAbFs.CacheManager.Set(akAbFs.akAbFsContext, "List"+path, buffer.Bytes())
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -270,7 +270,7 @@ func (akAbFs *AkAbFs) NewObject(path string) (fs.Object, error) {
 
 func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 	// use cache if available
-	cachedNewJsonObjectBytes, err := akAbFs.cacheManager.Get(akAbFs.akAbFsContext, "NewJsonObject"+path)
+	cachedNewJsonObjectBytes, err := akAbFs.CacheManager.Get(akAbFs.akAbFsContext, "NewJsonObject"+path)
 	if err == nil {
 		gjsonResult := gjson.ParseBytes(cachedNewJsonObjectBytes)
 
@@ -295,7 +295,7 @@ func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 	}
 	defer ObjectIoReader.Close()
 
-	err = akAbFs.cacheManager.Set(akAbFs.akAbFsContext, "NewJsonObject"+path, ObjectIoReaderBytes)
+	err = akAbFs.CacheManager.Set(akAbFs.akAbFsContext, "NewJsonObject"+path, ObjectIoReaderBytes)
 	if err != nil {
 		fmt.Println(err)
 	}
