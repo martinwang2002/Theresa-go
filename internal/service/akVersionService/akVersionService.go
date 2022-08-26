@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/rs/zerolog/log"
 
@@ -49,26 +50,27 @@ func (s *AkVersionService) LatestVersion(server string, platform string) (Versio
 
 	json.Unmarshal(versionFileBytes, &versionFileJson)
 
-	prevVersionFileBytes, err := s.AkAbFs.CacheManager.Get(context.Background(), "LatestVersion"+server+platform)
+	prevVersionFileBytes, err := s.AkAbFs.RedisClient.Get(s.AkAbFs.AkAbFsContext, "LatestVersion"+server+platform).Bytes()
+
+	setCache := func() {
+		err = s.AkAbFs.RedisClient.Set(s.AkAbFs.AkAbFsContext, "LatestVersion"+server+platform, versionFileBytes, 5*time.Minute).Err()
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to set cache LatestVersion")
+		}
+	}
+
 	if err == nil {
 		if !bytes.Equal(prevVersionFileBytes, versionFileBytes) {
-			err := s.AkAbFs.CacheManager.GetCodec().Clear(context.Background())
+			err := s.AkAbFs.RedisClient.FlushDB(s.AkAbFs.AkAbFsContext).Err()
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to clear cache")
 			} else {
 				log.Info().Msg("In memory cache purged")
 			}
-
-			err = s.AkAbFs.CacheManager.Set(context.Background(), "LatestVersion"+server+platform, versionFileBytes)
-			if err != nil {
-				log.Error().Err(err).Msg("Failed to set cache")
-			}
+			setCache()
 		}
 	} else {
-		err := s.AkAbFs.CacheManager.Set(context.Background(), "LatestVersion"+server+platform, versionFileBytes)
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to set cache")
-		}
+		setCache()
 	}
 
 	return versionFileJson, nil

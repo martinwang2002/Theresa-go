@@ -13,9 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/allegro/bigcache/v3"
-	"github.com/eko/gocache/v3/cache"
-	"github.com/eko/gocache/v3/store"
+	"github.com/go-redis/redis/v9"
 	backendDrive "github.com/rclone/rclone/backend/drive"
 	localDrive "github.com/rclone/rclone/backend/local"
 	"github.com/rclone/rclone/fs"
@@ -23,16 +21,28 @@ import (
 	"github.com/rclone/rclone/fs/config/configstruct"
 	"github.com/rs/zerolog/log"
 	"github.com/tidwall/gjson"
+
+	"theresa-go/internal/config"
 )
 
+const akAbFsRedisDefaultTimeout = time.Hour
+
 type AkAbFs struct {
-	akAbFsContext context.Context
+	AkAbFsContext context.Context
 	googleDriveFs fs.Fs
 	localFs       fs.Fs
-	CacheManager  *cache.Cache[[]byte]
+	RedisClient   *redis.Client
 }
 
-func NewAkAbFs() *AkAbFs {
+func NewAkAbFs(conf *config.Config) *AkAbFs {
+	redisOptions, err := redis.ParseURL(conf.RedisDsn)
+
+	if err != nil {
+		panic(err)
+	}
+
+	redisClient := redis.NewClient(redisOptions)
+
 	akAbFsContext := GetBackgroundContext()
 	googleDriveFs, err := GetGoogleDriveFs(akAbFsContext)
 	if err != nil {
@@ -42,55 +52,12 @@ func NewAkAbFs() *AkAbFs {
 	if err != nil {
 		panic(err)
 	}
-	bigcacheClient, err := bigcache.NewBigCache(bigcache.Config{
-		// number of shards (must be a power of 2)
-		Shards: 32,
-
-		// time after which entry can be evicted
-		LifeWindow: 5 * time.Minute,
-
-		// Interval between removing expired entries (clean up).
-		// If set to <= 0 then no action is performed.
-		// Setting to < 1 second is counterproductive — bigcache has a one second resolution.
-		CleanWindow: 1 * time.Second,
-
-		// rps * lifeWindow, used only in initial memory allocation
-		MaxEntriesInWindow: 10 * (5 * 60),
-
-		// max entry size in bytes, used only in initial memory allocation
-		MaxEntrySize: 500,
-
-		// prints information about additional memory allocation
-		Verbose: false,
-
-		// cache will not allocate more memory than this limit, value in MB
-		// if value is reached then the oldest entries can be overridden for the new ones
-		// 0 value means no size limit
-		HardMaxCacheSize: 256,
-
-		// callback fired when the oldest entry is removed because of its expiration time or no space left
-		// for the new entry, or because delete was called. A bitmask representing the reason will be returned.
-		// Default value is nil which means no callback and it prevents from unwrapping the oldest entry.
-		OnRemove: nil,
-
-		// OnRemoveWithReason is a callback fired when the oldest entry is removed because of its expiration time or no space left
-		// for the new entry, or because delete was called. A constant representing the reason will be passed through.
-		// Default value is nil which means no callback and it prevents from unwrapping the oldest entry.
-		// Ignored if OnRemove is specified.
-		OnRemoveWithReason: nil,
-	})
-	if err != nil {
-		panic(err)
-	}
-	bigcacheStore := store.NewBigcache(bigcacheClient)
-
-	cacheManager := cache.New[[]byte](bigcacheStore)
 
 	return &AkAbFs{
-		akAbFsContext: akAbFsContext,
+		AkAbFsContext: akAbFsContext,
 		googleDriveFs: googleDriveFs,
 		localFs:       localFs,
-		CacheManager:  cacheManager,
+		RedisClient:   redisClient,
 	}
 }
 
@@ -144,8 +111,8 @@ func (akAbFs *AkAbFs) list(path string) (fs.DirEntries, error) {
 	googleDriveFs := akAbFs.googleDriveFs
 	localFs := akAbFs.localFs
 
-	localEntries, localErr := localFs.List(akAbFs.akAbFsContext, path)
-	googleDriveEntries, googleDriveErr := googleDriveFs.List(akAbFs.akAbFsContext, path)
+	localEntries, localErr := localFs.List(akAbFs.AkAbFsContext, path)
+	googleDriveEntries, googleDriveErr := googleDriveFs.List(akAbFs.AkAbFsContext, path)
 
 	// Raise error if both errors are not nil for listing in local drive and google drive
 	if localErr != nil && googleDriveErr != nil {
@@ -189,7 +156,7 @@ type JsonDirEntry struct {
 
 func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
 	// use cache if available
-	cachedEntriesBytes, err := akAbFs.CacheManager.Get(akAbFs.akAbFsContext, "List"+path)
+	cachedEntriesBytes, err := akAbFs.RedisClient.Get(akAbFs.AkAbFsContext, "List"+path).Bytes()
 	if err == nil {
 		var buffer bytes.Buffer
 		buffer.Write(cachedEntriesBytes)
@@ -227,7 +194,7 @@ func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
 	var buffer bytes.Buffer
 	err = gob.NewEncoder(&buffer).Encode(jsonEntries)
 	if err == nil {
-		err = akAbFs.CacheManager.Set(akAbFs.akAbFsContext, "List"+path, buffer.Bytes())
+		err = akAbFs.RedisClient.Set(akAbFs.AkAbFsContext, "List"+path, buffer.Bytes(), akAbFsRedisDefaultTimeout).Err()
 		if err != nil {
 			log.Error().Err(err).Msg("failed to set cache list")
 		}
@@ -238,7 +205,7 @@ func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
 func (akAbFs *AkAbFs) localNewObject(path string) (fs.Object, error) {
 	localFs := akAbFs.localFs
 
-	localNewObject, err := localFs.NewObject(akAbFs.akAbFsContext, path)
+	localNewObject, err := localFs.NewObject(akAbFs.AkAbFsContext, path)
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +215,7 @@ func (akAbFs *AkAbFs) localNewObject(path string) (fs.Object, error) {
 func (akAbFs *AkAbFs) googleDriveNewObject(path string) (fs.Object, error) {
 	googleDriveFs := akAbFs.googleDriveFs
 
-	googleDriveNewObject, err := googleDriveFs.NewObject(akAbFs.akAbFsContext, path)
+	googleDriveNewObject, err := googleDriveFs.NewObject(akAbFs.AkAbFsContext, path)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +238,8 @@ func (akAbFs *AkAbFs) NewObject(path string) (fs.Object, error) {
 
 func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 	// use cache if available
-	cachedNewJsonObjectBytes, err := akAbFs.CacheManager.Get(akAbFs.akAbFsContext, "NewJsonObject"+path)
+	cachedNewJsonObjectBytes, err := akAbFs.RedisClient.Get(akAbFs.AkAbFsContext, "NewJsonObject"+path).Bytes()
+
 	if err == nil {
 		gjsonResult := gjson.ParseBytes(cachedNewJsonObjectBytes)
 
@@ -296,11 +264,9 @@ func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 	}
 	defer ObjectIoReader.Close()
 
-
-
-	err = akAbFs.CacheManager.Set(akAbFs.akAbFsContext, "NewJsonObject"+path, ObjectIoReaderBytes)
+	err = akAbFs.RedisClient.Set(akAbFs.AkAbFsContext, "NewJsonObject"+path, ObjectIoReaderBytes, akAbFsRedisDefaultTimeout).Err()
 	if err != nil {
-		log.Error().Err(err).Int("length",len(ObjectIoReaderBytes)).Str("path",path).Msg("failed to set cache")
+		log.Error().Err(err).Int("length", len(ObjectIoReaderBytes)).Str("path", path).Msg("failed to set cache")
 	}
 	gjsonResult := gjson.ParseBytes(ObjectIoReaderBytes)
 
