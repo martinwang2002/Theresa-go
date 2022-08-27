@@ -65,7 +65,11 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 	}
 
 	spritePngImageBuffer := new(bytes.Buffer)
-	png.Encode(spritePngImageBuffer, spriteEmptyImageRGBA)
+	defer spritePngImageBuffer.Reset()
+	err = png.Encode(spritePngImageBuffer, spriteEmptyImageRGBA)
+	if err != nil {
+		return err
+	}
 
 	// convert to webp
 	spriteItemWebpImage := bimg.NewImage(spritePngImageBuffer.Bytes())

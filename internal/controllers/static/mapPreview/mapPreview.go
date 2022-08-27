@@ -108,15 +108,17 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 			return ctx.Redirect(mainMapIdUrl)
 		}
 	}
-
-	mapPreviewObjectIoReader, err := mapPreviewObject.Open(context.Background())
+	cancelContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	mapPreviewObjectIoReader, err := mapPreviewObject.Open(cancelContext)
 	if err != nil {
 		return err
 	}
+	defer mapPreviewObjectIoReader.Close()
 
 	buf := new(bytes.Buffer)
+	defer buf.Reset()
 	buf.ReadFrom(mapPreviewObjectIoReader)
-	defer mapPreviewObjectIoReader.Close()
 
 	// resize image to 16:9 ratio
 	resizedImage, err := bimg.NewImage(buf.Bytes()).Process(bimg.Options{

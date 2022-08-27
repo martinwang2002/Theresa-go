@@ -16,7 +16,7 @@ import (
 
 type StaticMissingTileController struct {
 	fx.In
-	AkAbFs *akAbFs.AkAbFs
+	AkAbFs               *akAbFs.AkAbFs
 	StaticVersionService *staticVersionService.StaticVersionService
 }
 
@@ -35,14 +35,19 @@ func (c *StaticMissingTileController) MissingTile(ctx *fiber.Ctx) error {
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
-	newObjectIoReader, err := newObject.Open(context.Background())
+
+	cancelContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	newObjectIoReader, err := newObject.Open(cancelContext)
 	if err != nil {
 		return err
 	}
+	defer newObjectIoReader.Close()
 
 	buf := new(bytes.Buffer)
+	defer buf.Reset()
 	buf.ReadFrom(newObjectIoReader)
-	defer newObjectIoReader.Close()
 
 	encodedWebpBuffer, err := webpService.EncodeWebp(buf.Bytes(), 100)
 

@@ -38,7 +38,9 @@ func (s *AkVersionService) LatestVersion(server string, platform string) (Versio
 		return versionFileJson, err
 	}
 	// convert version file to json
-	versionFileIoReader, err := versionFile.Open(context.Background())
+	cancelContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	versionFileIoReader, err := versionFile.Open(cancelContext)
 	if err != nil {
 		return versionFileJson, err
 	}
@@ -50,10 +52,10 @@ func (s *AkVersionService) LatestVersion(server string, platform string) (Versio
 
 	json.Unmarshal(versionFileBytes, &versionFileJson)
 
-	prevVersionFileBytes, err := s.AkAbFs.RedisClient.Get(s.AkAbFs.AkAbFsContext, "LatestVersion"+server+platform).Bytes()
+	prevVersionFileBytes, err := s.AkAbFs.RedisClient.Get(cancelContext, "LatestVersion"+server+platform).Bytes()
 
 	setCache := func() {
-		err = s.AkAbFs.RedisClient.Set(s.AkAbFs.AkAbFsContext, "LatestVersion"+server+platform, versionFileBytes, 5*time.Minute).Err()
+		err = s.AkAbFs.RedisClient.Set(cancelContext, "LatestVersion"+server+platform, versionFileBytes, 5*time.Minute).Err()
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to set cache LatestVersion")
 		}
@@ -61,7 +63,7 @@ func (s *AkVersionService) LatestVersion(server string, platform string) (Versio
 
 	if err == nil {
 		if !bytes.Equal(prevVersionFileBytes, versionFileBytes) {
-			err := s.AkAbFs.RedisClient.FlushDB(s.AkAbFs.AkAbFsContext).Err()
+			err := s.AkAbFs.RedisClient.FlushDB(cancelContext).Err()
 			if err != nil {
 				log.Error().Err(err).Msg("Failed to clear cache")
 			} else {

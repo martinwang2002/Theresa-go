@@ -28,7 +28,7 @@ import (
 const akAbFsRedisDefaultTimeout = time.Hour
 
 type AkAbFs struct {
-	AkAbFsContext context.Context
+	akAbFsContext context.Context
 	googleDriveFs fs.Fs
 	localFs       fs.Fs
 	RedisClient   *redis.Client
@@ -54,7 +54,7 @@ func NewAkAbFs(conf *config.Config) *AkAbFs {
 	}
 
 	return &AkAbFs{
-		AkAbFsContext: akAbFsContext,
+		akAbFsContext: akAbFsContext,
 		googleDriveFs: googleDriveFs,
 		localFs:       localFs,
 		RedisClient:   redisClient,
@@ -111,8 +111,8 @@ func (akAbFs *AkAbFs) list(path string) (fs.DirEntries, error) {
 	googleDriveFs := akAbFs.googleDriveFs
 	localFs := akAbFs.localFs
 
-	localEntries, localErr := localFs.List(akAbFs.AkAbFsContext, path)
-	googleDriveEntries, googleDriveErr := googleDriveFs.List(akAbFs.AkAbFsContext, path)
+	localEntries, localErr := localFs.List(akAbFs.akAbFsContext, path)
+	googleDriveEntries, googleDriveErr := googleDriveFs.List(akAbFs.akAbFsContext, path)
 
 	// Raise error if both errors are not nil for listing in local drive and google drive
 	if localErr != nil && googleDriveErr != nil {
@@ -156,7 +156,7 @@ type JsonDirEntry struct {
 
 func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
 	// use cache if available
-	cachedEntriesBytes, err := akAbFs.RedisClient.Get(akAbFs.AkAbFsContext, "List"+path).Bytes()
+	cachedEntriesBytes, err := akAbFs.RedisClient.Get(akAbFs.akAbFsContext, "List"+path).Bytes()
 	if err == nil {
 		var buffer bytes.Buffer
 		buffer.Write(cachedEntriesBytes)
@@ -194,7 +194,7 @@ func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
 	var buffer bytes.Buffer
 	err = gob.NewEncoder(&buffer).Encode(jsonEntries)
 	if err == nil {
-		err = akAbFs.RedisClient.Set(akAbFs.AkAbFsContext, "List"+path, buffer.Bytes(), akAbFsRedisDefaultTimeout).Err()
+		err = akAbFs.RedisClient.Set(akAbFs.akAbFsContext, "List"+path, buffer.Bytes(), akAbFsRedisDefaultTimeout).Err()
 		if err != nil {
 			log.Error().Err(err).Msg("failed to set cache list")
 		}
@@ -205,7 +205,9 @@ func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
 func (akAbFs *AkAbFs) localNewObject(path string) (fs.Object, error) {
 	localFs := akAbFs.localFs
 
-	localNewObject, err := localFs.NewObject(akAbFs.AkAbFsContext, path)
+	cancelContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	localNewObject, err := localFs.NewObject(cancelContext, path)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +217,9 @@ func (akAbFs *AkAbFs) localNewObject(path string) (fs.Object, error) {
 func (akAbFs *AkAbFs) googleDriveNewObject(path string) (fs.Object, error) {
 	googleDriveFs := akAbFs.googleDriveFs
 
-	googleDriveNewObject, err := googleDriveFs.NewObject(akAbFs.AkAbFsContext, path)
+	cancelContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	googleDriveNewObject, err := googleDriveFs.NewObject(cancelContext, path)
 	if err != nil {
 		return nil, err
 	}
@@ -237,8 +241,11 @@ func (akAbFs *AkAbFs) NewObject(path string) (fs.Object, error) {
 }
 
 func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
+	cancelContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// use cache if available
-	cachedNewJsonObjectBytes, err := akAbFs.RedisClient.Get(akAbFs.AkAbFsContext, "NewJsonObject"+path).Bytes()
+	cachedNewJsonObjectBytes, err := akAbFs.RedisClient.Get(cancelContext, "NewJsonObject"+path).Bytes()
 
 	if err == nil {
 		gjsonResult := gjson.ParseBytes(cachedNewJsonObjectBytes)
@@ -252,7 +259,7 @@ func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 		return nil, err
 	}
 
-	ObjectIoReader, err := Object.Open(context.Background())
+	ObjectIoReader, err := Object.Open(cancelContext)
 
 	if err != nil {
 		return nil, err
@@ -264,7 +271,7 @@ func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 	}
 	defer ObjectIoReader.Close()
 
-	err = akAbFs.RedisClient.Set(akAbFs.AkAbFsContext, "NewJsonObject"+path, ObjectIoReaderBytes, akAbFsRedisDefaultTimeout).Err()
+	err = akAbFs.RedisClient.Set(cancelContext, "NewJsonObject"+path, ObjectIoReaderBytes, akAbFsRedisDefaultTimeout).Err()
 	if err != nil {
 		log.Error().Err(err).Int("length", len(ObjectIoReaderBytes)).Str("path", path).Msg("failed to set cache")
 	}

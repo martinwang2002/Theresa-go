@@ -30,7 +30,7 @@ func (c *StaticAudioController) Audio(ctx *fiber.Ctx) error {
 	}
 
 	indexOfDot := strings.LastIndex(audioPath, ".")
-	audioFilePath := audioPath[:indexOfDot]+".wav"
+	audioFilePath := audioPath[:indexOfDot] + ".wav"
 	audioFileExtension := audioPath[indexOfDot+1:]
 
 	audioObject, err := c.AkAbFs.NewObjectSmart(ctx.Params("server"), ctx.Params("platform"), "/unpacked_assetbundle/assets/torappu/dynamicassets/audio/"+audioFilePath)
@@ -39,7 +39,9 @@ func (c *StaticAudioController) Audio(ctx *fiber.Ctx) error {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
 
-	audioObjectIoReader, err := audioObject.Open(context.Background())
+	cancelContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	audioObjectIoReader, err := audioObject.Open(cancelContext)
 
 	if err != nil {
 		return err

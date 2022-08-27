@@ -164,10 +164,14 @@ func (c *StaticItemController) getItemFromItemTable(itemId string, staticProdVer
 		return IconInfo{}, err
 	}
 
-	itemObjectIoReader, err := itemObject.Open(context.Background())
+	cancelContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	itemObjectIoReader, err := itemObject.Open(cancelContext)
 	if err != nil {
 		return IconInfo{}, err
 	}
+	defer itemObjectIoReader.Close()
 
 	// get offset defined in sprite?
 	rootPackingTag := iconHubAbJson.Get("icon_hub._rootPackingTag").Str
@@ -249,14 +253,17 @@ func (c *StaticItemController) getFurniFromBuildingData(itemId string, staticPro
 		return IconInfo{}, err
 	}
 
-	itemObjectIoReader, err := itemObject.Open(context.Background())
+	cancelContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	itemObjectIoReader, err := itemObject.Open(cancelContext)
 	if err != nil {
 		return IconInfo{}, err
 	}
+	defer itemObjectIoReader.Close()
 
 	itemImageBuf := new(bytes.Buffer)
+	defer itemImageBuf.Reset()
 	itemImageBuf.ReadFrom(itemObjectIoReader)
-	defer itemObjectIoReader.Close()
 	itemImage := bimg.NewImage(itemImageBuf.Bytes())
 	itemImageZoomed, err := itemImage.Process(bimg.Options{
 		Width:  151, // 226/1.5
@@ -335,6 +342,7 @@ func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
 		return err
 	}
 	imageBuffer := new(bytes.Buffer)
+	defer imageBuffer.Reset()
 	png.Encode(imageBuffer, itemImageWithBackGround)
 
 	// convert to webp

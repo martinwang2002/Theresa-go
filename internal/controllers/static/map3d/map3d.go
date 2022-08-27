@@ -563,7 +563,9 @@ func (c *StaticMap3DController) Map3DRootSceneObj(ctx *fiber.Ctx) error {
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
-	newObjectIoReader, err := newObject.Open(context.Background())
+	cancelContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	newObjectIoReader, err := newObject.Open(cancelContext)
 	if err != nil {
 		return err
 	}
@@ -607,7 +609,9 @@ func (c *StaticMap3DController) Map3DRootSceneLightmap(ctx *fiber.Ctx) error {
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
-	newObjectIoReader, err := newObject.Open(context.Background())
+	cancelContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	newObjectIoReader, err := newObject.Open(cancelContext)
 	if err != nil {
 		return err
 	}
@@ -628,12 +632,15 @@ func (c *StaticMap3DController) Map3DTextureMap(ctx *fiber.Ctx) error {
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
-	newObjectIoReader, err := newObject.Open(context.Background())
+	cancelContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	newObjectIoReader, err := newObject.Open(cancelContext)
 	if err != nil {
 		return err
 	}
 
 	buf := new(bytes.Buffer)
+	defer buf.Reset()
 	buf.ReadFrom(newObjectIoReader)
 
 	encodedWebpBuffer, err := webpService.EncodeWebp(buf.Bytes(), 100)

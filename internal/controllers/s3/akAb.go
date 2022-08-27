@@ -59,7 +59,9 @@ func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
 			if err != nil {
 				return ctx.SendStatus(fiber.StatusNotFound)
 			}
-			newObjectIoReader, err := newObject.Open(context.Background())
+			cancelContext, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			newObjectIoReader, err := newObject.Open(cancelContext)
 			if err != nil {
 				return err
 			}
@@ -71,7 +73,9 @@ func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
 		if err != nil {
 			return ctx.SendStatus(fiber.StatusNotFound)
 		}
-		newObjectIoReader, err := newObject.Open(context.Background())
+		cancelContext, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		newObjectIoReader, err := newObject.Open(cancelContext)
 		if err != nil {
 			return err
 		}
