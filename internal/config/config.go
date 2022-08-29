@@ -7,6 +7,8 @@ import (
 	"github.com/kelseyhightower/envconfig"
 )
 
+// Note that all configs should have prefix THERESA_GO_
+// e.g. THERESA_GO_DEV_MODE
 type Config struct {
 	// DevMode to indicate development mode. When true, the program would spin up utilities for debugging and
 	// provide a more contextual message when encountered a panic. See internal/server/httpserver/http.go for the
