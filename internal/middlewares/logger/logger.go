@@ -51,6 +51,6 @@ func logCompleted(c *fiber.Ctx, start time.Time) {
 			Str("path", string(c.Request().URI().RequestURI())).
 			Str("host", string(c.Context().Host())),
 		).
-		Float64("responseTime", float64(time.Since(start).Nanoseconds())/1e6).
+		Float64("responseTimeInMs", float64(time.Since(start).Nanoseconds())/1e6).
 		Msg("Request completed")
 }
