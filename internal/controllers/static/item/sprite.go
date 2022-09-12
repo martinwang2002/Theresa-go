@@ -1,7 +1,6 @@
 package staticItemController
 
 import (
-	// "context"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 	"math"
 	"regexp"
 	"strconv"
+	"sync"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/h2non/bimg"
@@ -49,13 +49,29 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 	spriteImageDimension := 181
 	spriteEmptyImageRGBA := image.NewRGBA(image.Rect(0, 0, numOfRowsAndCols*spriteImageDimension, (int(numOfItems/numOfRowsAndCols)+1)*spriteImageDimension))
 
+	var wg sync.WaitGroup
+	wg.Add(len(filtereditemIds))
+
+	itemImageChannel := make([]*image.RGBA, len(filtereditemIds))
+	itemImageErrorChannel := make([]error, len(filtereditemIds))
 	for index, itemId := range filtereditemIds {
+		go func(index int, itemId string) {
+			defer wg.Done()
+			itemImage, err := c.itemImage(itemId, staticProdVersionPath)
+			itemImageChannel[index] = itemImage
+			itemImageErrorChannel[index] = err
+		}(index, itemId)
+	}
+	wg.Wait()
+
+	for index := range filtereditemIds {
 		row := index / numOfRowsAndCols
 		col := index % numOfRowsAndCols
 
-		itemImage, err := c.itemImage(itemId, staticProdVersionPath)
-		if err != nil {
-			return err
+		itemImage := itemImageChannel[index]
+		itemImageError := itemImageErrorChannel[index]
+		if itemImageError != nil {
+			return itemImageError
 		}
 
 		draw.Draw(spriteEmptyImageRGBA, image.Rect(col*spriteImageDimension, row*spriteImageDimension, (col+1)*spriteImageDimension, (row+1)*spriteImageDimension), itemImage, image.Point{0, 0}, draw.Src)
@@ -66,7 +82,11 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 
 	spritePngImageBuffer := new(bytes.Buffer)
 	defer spritePngImageBuffer.Reset()
-	err = png.Encode(spritePngImageBuffer, spriteEmptyImageRGBA)
+	encoder := png.Encoder{
+		CompressionLevel: png.BestSpeed,
+	}
+	err = encoder.Encode(spritePngImageBuffer, spriteEmptyImageRGBA)
+
 	if err != nil {
 		return err
 	}
@@ -74,12 +94,13 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 	// convert to webp
 	spriteItemWebpImage := bimg.NewImage(spritePngImageBuffer.Bytes())
 	spriteItemWebpImageBytes, err := spriteItemWebpImage.Process(bimg.Options{
-		Quality: 75,
+		Quality: 25,
 		Type:    bimg.WEBP,
 	})
 	if err != nil {
 		return err
 	}
+
 	ctx.Set("Content-Type", "image/webp")
 
 	// set metadata header

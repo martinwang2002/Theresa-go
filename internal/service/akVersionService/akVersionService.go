@@ -8,8 +8,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/rs/zerolog/log"
-
 	"theresa-go/internal/akAbFs"
 )
 
@@ -52,23 +50,15 @@ func (s *AkVersionService) LatestVersion(server string, platform string) (Versio
 
 	json.Unmarshal(versionFileBytes, &versionFileJson)
 
-	prevVersionFileBytes, err := s.AkAbFs.RedisClient.Get(cancelContext, "LatestVersion"+server+platform).Bytes()
+	prevVersionFileBytes, err := s.AkAbFs.CacheClient.GetBytes("LatestVersion" + server + platform)
 
 	setCache := func() {
-		err = s.AkAbFs.RedisClient.Set(cancelContext, "LatestVersion"+server+platform, versionFileBytes, 5*time.Minute).Err()
-		if err != nil {
-			log.Error().Err(err).Msg("Failed to set cache LatestVersion")
-		}
+		s.AkAbFs.CacheClient.SetBytesWithTimeout("LatestVersion"+server+platform, versionFileBytes, 5*time.Minute)
 	}
 
 	if err == nil {
 		if !bytes.Equal(prevVersionFileBytes, versionFileBytes) {
-			err := s.AkAbFs.RedisClient.FlushDB(cancelContext).Err()
-			if err != nil {
-				log.Error().Err(err).Msg("Failed to clear cache")
-			} else {
-				log.Info().Msg("In memory cache purged")
-			}
+			s.AkAbFs.CacheClient.Flush()
 			setCache()
 		}
 	} else {

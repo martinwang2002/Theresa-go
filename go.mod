@@ -3,6 +3,7 @@ module theresa-go
 go 1.19
 
 require (
+	github.com/allegro/bigcache/v3 v3.0.2
 	github.com/go-redis/redis/v9 v9.0.0-beta.2
 	github.com/gofiber/fiber/v2 v2.36.0
 	github.com/h2non/bimg v1.1.9

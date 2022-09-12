@@ -11,37 +11,28 @@ import (
 	pathLib "path"
 	"sort"
 	"strings"
-	"time"
+	"sync"
 
-	"github.com/go-redis/redis/v9"
 	backendDrive "github.com/rclone/rclone/backend/drive"
 	localDrive "github.com/rclone/rclone/backend/local"
 	"github.com/rclone/rclone/fs"
 	"github.com/rclone/rclone/fs/config/configmap"
 	"github.com/rclone/rclone/fs/config/configstruct"
-	"github.com/rs/zerolog/log"
 	"github.com/tidwall/gjson"
 
 	"theresa-go/internal/config"
 )
 
-const akAbFsRedisDefaultTimeout = time.Hour
-
 type AkAbFs struct {
 	akAbFsContext context.Context
 	googleDriveFs fs.Fs
 	localFs       fs.Fs
-	RedisClient   *redis.Client
+	CacheClient   *CacheClient
+	mu            sync.Mutex
 }
 
 func NewAkAbFs(conf *config.Config) *AkAbFs {
-	redisOptions, err := redis.ParseURL(conf.RedisDsn)
-
-	if err != nil {
-		panic(err)
-	}
-
-	redisClient := redis.NewClient(redisOptions)
+	cacheClient := NewCacheClient(conf)
 
 	akAbFsContext := GetBackgroundContext()
 	googleDriveFs, err := GetGoogleDriveFs(akAbFsContext)
@@ -55,9 +46,10 @@ func NewAkAbFs(conf *config.Config) *AkAbFs {
 
 	return &AkAbFs{
 		akAbFsContext: akAbFsContext,
+		CacheClient:   cacheClient,
 		googleDriveFs: googleDriveFs,
 		localFs:       localFs,
-		RedisClient:   redisClient,
+		mu:            sync.Mutex{},
 	}
 }
 
@@ -155,8 +147,11 @@ type JsonDirEntry struct {
 }
 
 func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
+	akAbFs.mu.Lock()
+	defer akAbFs.mu.Unlock()
+
 	// use cache if available
-	cachedEntriesBytes, err := akAbFs.RedisClient.Get(akAbFs.akAbFsContext, "List"+path).Bytes()
+	cachedEntriesBytes, err := akAbFs.CacheClient.GetBytes("List" + path)
 	if err == nil {
 		var buffer bytes.Buffer
 		buffer.Write(cachedEntriesBytes)
@@ -194,20 +189,16 @@ func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
 	var buffer bytes.Buffer
 	err = gob.NewEncoder(&buffer).Encode(jsonEntries)
 	if err == nil {
-		err = akAbFs.RedisClient.Set(akAbFs.akAbFsContext, "List"+path, buffer.Bytes(), akAbFsRedisDefaultTimeout).Err()
-		if err != nil {
-			log.Error().Err(err).Msg("failed to set cache list")
-		}
+		akAbFs.CacheClient.SetBytes("List"+path, buffer.Bytes())
 	}
 	return jsonEntries, nil
 }
 
 func (akAbFs *AkAbFs) localNewObject(path string) (fs.Object, error) {
-	localFs := akAbFs.localFs
-
 	cancelContext, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	localNewObject, err := localFs.NewObject(cancelContext, path)
+
+	localNewObject, err := akAbFs.localFs.NewObject(cancelContext, path)
 	if err != nil {
 		return nil, err
 	}
@@ -215,11 +206,10 @@ func (akAbFs *AkAbFs) localNewObject(path string) (fs.Object, error) {
 }
 
 func (akAbFs *AkAbFs) googleDriveNewObject(path string) (fs.Object, error) {
-	googleDriveFs := akAbFs.googleDriveFs
-
 	cancelContext, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	googleDriveNewObject, err := googleDriveFs.NewObject(cancelContext, path)
+
+	googleDriveNewObject, err := akAbFs.googleDriveFs.NewObject(cancelContext, path)
 	if err != nil {
 		return nil, err
 	}
@@ -241,17 +231,18 @@ func (akAbFs *AkAbFs) NewObject(path string) (fs.Object, error) {
 }
 
 func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
-	cancelContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	akAbFs.mu.Lock()
+	defer akAbFs.mu.Unlock()
 
 	// use cache if available
-	cachedNewJsonObjectBytes, err := akAbFs.RedisClient.Get(cancelContext, "NewJsonObject"+path).Bytes()
-
+	cachedNewJsonObjectBytes, err := akAbFs.CacheClient.GetBytes("NewJsonObject" + path)
 	if err == nil {
 		gjsonResult := gjson.ParseBytes(cachedNewJsonObjectBytes)
-
 		return &gjsonResult, nil
 	}
+
+	cancelContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	Object, err := akAbFs.NewObject(path)
 
@@ -271,10 +262,8 @@ func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 	}
 	defer ObjectIoReader.Close()
 
-	err = akAbFs.RedisClient.Set(cancelContext, "NewJsonObject"+path, ObjectIoReaderBytes, akAbFsRedisDefaultTimeout).Err()
-	if err != nil {
-		log.Error().Err(err).Int("length", len(ObjectIoReaderBytes)).Str("path", path).Msg("failed to set cache")
-	}
+	akAbFs.CacheClient.SetBytes("NewJsonObject"+path, ObjectIoReaderBytes)
+
 	gjsonResult := gjson.ParseBytes(ObjectIoReaderBytes)
 
 	return &gjsonResult, nil
