@@ -235,10 +235,9 @@ func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 	defer akAbFs.mu.Unlock()
 
 	// use cache if available
-	cachedNewJsonObjectBytes, err := akAbFs.CacheClient.GetBytes("NewJsonObject" + path)
+	cachedNewJsonObjectGjsonResult, err := akAbFs.CacheClient.GetGjsonResult("NewJsonObject" + path)
 	if err == nil {
-		gjsonResult := gjson.ParseBytes(cachedNewJsonObjectBytes)
-		return &gjsonResult, nil
+		return cachedNewJsonObjectGjsonResult, nil
 	}
 
 	cancelContext, cancel := context.WithCancel(context.Background())
@@ -262,9 +261,8 @@ func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
 	}
 	defer ObjectIoReader.Close()
 
-	akAbFs.CacheClient.SetBytes("NewJsonObject"+path, ObjectIoReaderBytes)
-
 	gjsonResult := gjson.ParseBytes(ObjectIoReaderBytes)
+	akAbFs.CacheClient.SetGjsonResult("NewJsonObject"+path, ObjectIoReaderBytes, &gjsonResult)
 
 	return &gjsonResult, nil
 }

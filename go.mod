@@ -3,12 +3,12 @@ module theresa-go
 go 1.19
 
 require (
-	github.com/allegro/bigcache/v3 v3.0.2
 	github.com/go-redis/redis/v9 v9.0.0-beta.2
 	github.com/gofiber/fiber/v2 v2.36.0
 	github.com/h2non/bimg v1.1.9
 	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0
+	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/rclone/rclone v1.59.1
 	github.com/rs/zerolog v1.27.0
 	github.com/tidwall/gjson v1.14.2
