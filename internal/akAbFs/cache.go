@@ -37,7 +37,8 @@ func NewCacheClient(conf *config.Config) *CacheClient {
 		MaxEntriesInWindow: 1000,
 
 		// max entry size in bytes, used only in initial memory allocation
-		MaxEntrySize: 512,
+		// 20MB
+		MaxEntrySize: 20 * 1024 * 1024,
 
 		// prints information about additional memory allocation
 		Verbose: false,
