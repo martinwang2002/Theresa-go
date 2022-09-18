@@ -60,6 +60,23 @@ type Map3DConfig struct {
 type MeshConfig struct {
 	Material       string         `json:"material"`
 	LightmapConfig LightmapConfig `json:"lightmapConfig"`
+	CastShadows    int            `json:"castShadow"`
+	ReceiveShadows bool           `json:"receiveShadow"`
+	// From https://docs.unity3d.com/Manual/class-MeshRenderer.html
+	// Cast Shadows	Specify if and how this Renderer casts shadows when a suitable Light shines on it.
+
+	// This property corresponds to the Renderer.shadowCastingMode API.
+	// On	This Renderer casts a shadow when a shadow-casting Light shines on it.
+	// Off	This Renderer does not cast shadows.
+	// Two-sided	This Renderer casts two-sided shadows. This means that single-sided objects like a plane or a quad can cast shadows, even if the light source is behind the mesh.
+
+	// For Baked Global Illumination or Enlighten Realtime Global Illumination to support two-sided shadows, the material must support Double Sided Global Illumination.
+	// Shadows Only	This Renderer casts shadows, but the Renderer itself isn’t visible.
+	// Receive Shadows	Specify if Unity displays shadows cast onto this Renderer.
+
+	// This property only has an effect if you enable Baked Global Illumination or Enlighten Realtime Global Illumination for this scene.
+
+	// This property corresponds to the Renderer.receiveShadows API.
 }
 
 type LightmapConfig struct {
@@ -227,6 +244,17 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 				Z: meshRendererFileJson["m_LightmapTilingOffset"].Map()["z"].Float(),
 				W: meshRendererFileJson["m_LightmapTilingOffset"].Map()["w"].Float(),
 			}
+
+			if !meshRendererFileJson["m_CastShadows"].Exists() {
+				return nil, nil, fmt.Errorf("cannot find m_CastShadows")
+			}
+
+			meshConfigs[subMesh].CastShadows = int(meshRendererFileJson["m_CastShadows"].Int())
+
+			if !meshRendererFileJson["m_ReceiveShadows"].Exists() {
+				return nil, nil, fmt.Errorf("cannot find m_ReceiveShadows")
+			}
+			meshConfigs[subMesh].ReceiveShadows = meshRendererFileJson["m_ReceiveShadows"].Bool()
 
 			// Material path id
 			if !meshRendererFileJson["m_Materials"].Exists() {
