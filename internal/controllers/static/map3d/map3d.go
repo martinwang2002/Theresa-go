@@ -31,9 +31,10 @@ func RegisterstaticMap3DController(appStaticApiV0AK *versioning.AppStaticApiV0AK
 }
 
 type Obj struct {
-	Obj         string                    `json:"obj"`
-	MeshConfigs []MeshConfig              `json:"meshConfigs"`
-	Materials   map[string]MaterialConfig `json:"materials"`
+	Obj          string                    `json:"obj"`
+	MeshConfigs  []MeshConfig              `json:"meshConfigs"`
+	Materials    map[string]MaterialConfig `json:"materials"`
+	LightConfigs []LightConfig             `json:"lightConfigs"`
 }
 
 type XY struct {
@@ -58,10 +59,10 @@ type Map3DConfig struct {
 }
 
 type MeshConfig struct {
-	Material       string         `json:"material"`
-	LightmapConfig LightmapConfig `json:"lightmapConfig"`
-	CastShadows    int            `json:"castShadow"`
-	ReceiveShadows bool           `json:"receiveShadow"`
+	Material       string `json:"material"`
+	LightmapConfig XYZW   `json:"lightmapConfig"`
+	CastShadows    int    `json:"castShadow"`
+	ReceiveShadows bool   `json:"receiveShadow"`
 	// From https://docs.unity3d.com/Manual/class-MeshRenderer.html
 	// Cast Shadows	Specify if and how this Renderer casts shadows when a suitable Light shines on it.
 
@@ -79,7 +80,13 @@ type MeshConfig struct {
 	// This property corresponds to the Renderer.receiveShadows API.
 }
 
-type LightmapConfig struct {
+type XYZ struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+	Z float64 `json:"z"`
+}
+
+type XYZW struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
 	Z float64 `json:"z"`
@@ -91,6 +98,21 @@ type Color struct {
 	G float64 `json:"g"`
 	B float64 `json:"b"`
 	A float64 `json:"a"`
+}
+
+type Transform struct {
+	LocalRotation XYZW `json:"localRotation"`
+	LocalPosition XYZ  `json:"localPosition"`
+	LocalScale    XYZ  `json:"localScale"`
+}
+
+type LightConfig struct {
+	Color      Color       `json:"color"`
+	Transforms []Transform `json:"transforms"`
+	Intensity  float64     `json:"intensity"`
+	Range      float64     `json:"range"`
+	SpotAngle  float64     `json:"spotAngle"`
+	Type       int64       `json:"type"`
 }
 
 func (c *StaticMap3DController) formatMaterialKey(key string) string {
@@ -112,13 +134,12 @@ func (c *StaticMap3DController) formatMaterialKey(key string) string {
 	return formattedString
 }
 
-func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath string, lowerLevelId string) ([]MeshConfig, map[string]MaterialConfig, error) {
-
+func (c *StaticMap3DController) getTypetree(ctx *fiber.Ctx, staticProdVersionPath string, lowerLevelId string) (*gjson.Result, error) {
 	sceneAbDirectoryPath := staticProdVersionPath + fmt.Sprintf("/assetbundle/scenes/%s", lowerLevelId)
 
 	sceneAbDirectoryFiles, err := c.AkAbFs.List(sceneAbDirectoryPath)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	sceneAbLockFileName := ""
@@ -129,7 +150,7 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 	}
 
 	if sceneAbLockFileName == "" {
-		return nil, nil, fmt.Errorf("no sceneAbLockPath found")
+		return nil, fmt.Errorf("no sceneAbLockPath found")
 	}
 
 	sceneAbLockPath := sceneAbDirectoryPath + "/" + sceneAbLockFileName
@@ -137,13 +158,13 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 	sceneAbLockJsonResult, err := c.AkAbFs.NewJsonObject(sceneAbLockPath)
 
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	sceneAbLockJson := sceneAbLockJsonResult.Map()
 
 	if !sceneAbLockJson["files"].Exists() {
-		return nil, nil, fmt.Errorf("no files field in .lock file found")
+		return nil, fmt.Errorf("no files field in .lock file found")
 	}
 
 	typetreeFile := ""
@@ -159,9 +180,19 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 
 	// load typetreeFile
 	if typetreeFile == "" {
-		return nil, nil, fmt.Errorf("no typetree found")
+		return nil, fmt.Errorf("no typetree found")
 	}
+
 	typetreeFileJsonResult, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/" + typetreeFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return typetreeFileJsonResult, nil
+}
+
+func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath string, lowerLevelId string) ([]MeshConfig, map[string]MaterialConfig, error) {
+	typetreeFileJsonResult, err := c.getTypetree(ctx, staticProdVersionPath, lowerLevelId)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -238,7 +269,7 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 				return nil, nil, fmt.Errorf("cannot find m_LightmapTilingOffset")
 			}
 
-			meshConfigs[subMesh].LightmapConfig = LightmapConfig{
+			meshConfigs[subMesh].LightmapConfig = XYZW{
 				X: meshRendererFileJson["m_LightmapTilingOffset"].Map()["x"].Float(),
 				Y: meshRendererFileJson["m_LightmapTilingOffset"].Map()["y"].Float(),
 				Z: meshRendererFileJson["m_LightmapTilingOffset"].Map()["z"].Float(),
@@ -388,6 +419,92 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 	return meshConfigs, materials, nil
 }
 
+func (c *StaticMap3DController) lightConfig(ctx *fiber.Ctx, staticProdVersionPath string, lowerLevelId string) ([]LightConfig, error) {
+	typetreeFileJsonResult, err := c.getTypetree(ctx, staticProdVersionPath, lowerLevelId)
+	if err != nil {
+		return nil, err
+	}
+	
+	typetreeFileJsonResultMap := typetreeFileJsonResult.Map()
+	lightKeys := make([]string, 0)
+
+	for key := range typetreeFileJsonResultMap {
+		if strings.HasSuffix(key, "_Light") {
+			lightKeys = append(lightKeys, key)
+		}
+	}
+
+	lightConfigs := make([]LightConfig, 0)
+	for _, lightKey := range lightKeys {
+		// get colors
+		color := Color{
+			R: typetreeFileJsonResultMap[lightKey].Get("m_Color.r").Float(),
+			G: typetreeFileJsonResultMap[lightKey].Get("m_Color.g").Float(),
+			B: typetreeFileJsonResultMap[lightKey].Get("m_Color.b").Float(),
+			A: typetreeFileJsonResultMap[lightKey].Get("m_Color.a").Float(),
+		}
+
+		// get inherited transforms
+		transforms := make([]Transform, 0)
+
+		gameObjectPathId := typetreeFileJsonResultMap[lightKey].Get("m_GameObject.m_PathID").String()
+
+		components := typetreeFileJsonResult.Get(gameObjectPathId + "_GameObject_*.m_Component").Array()
+		transformPathId := ""
+
+		for _, component := range components {
+			componentPathId := component.Get("component.m_PathID").String()
+			if typetreeFileJsonResult.Get(componentPathId + "_Transform").Exists() {
+				transformPathId = componentPathId
+				break
+			}
+		}
+
+		for {
+			transform := Transform{
+				LocalPosition: XYZ{
+					X: typetreeFileJsonResult.Get(transformPathId + "_Transform.m_LocalPosition.x").Float(),
+					Y: typetreeFileJsonResult.Get(transformPathId + "_Transform.m_LocalPosition.y").Float(),
+					Z: typetreeFileJsonResult.Get(transformPathId + "_Transform.m_LocalPosition.z").Float(),
+				},
+				LocalRotation: XYZW{
+					X: typetreeFileJsonResult.Get(transformPathId + "_Transform.m_LocalRotation.x").Float(),
+					Y: typetreeFileJsonResult.Get(transformPathId + "_Transform.m_LocalRotation.y").Float(),
+					Z: typetreeFileJsonResult.Get(transformPathId + "_Transform.m_LocalRotation.z").Float(),
+					W: typetreeFileJsonResult.Get(transformPathId + "_Transform.m_LocalRotation.w").Float(),
+				},
+				LocalScale: XYZ{
+					X: typetreeFileJsonResult.Get(transformPathId + "_Transform.m_LocalScale.x").Float(),
+					Y: typetreeFileJsonResult.Get(transformPathId + "_Transform.m_LocalScale.y").Float(),
+					Z: typetreeFileJsonResult.Get(transformPathId + "_Transform.m_LocalScale.z").Float(),
+				},
+			}
+
+			if typetreeFileJsonResult.Get(transformPathId+"_Transform.m_Father.m_PathID").Int() != 0 {
+				transformPathId = typetreeFileJsonResult.Get(transformPathId + "_Transform.m_Father.m_PathID").String()
+			} else {
+				break
+			}
+
+			// from parent to child (reverse order)
+			transforms = append([]Transform{transform}, transforms...)
+		}
+
+		lightConfig := LightConfig{
+			Color:      color,
+			Transforms: transforms,
+			Intensity:  typetreeFileJsonResultMap[lightKey].Get("m_Intensity").Float(),
+			Range:      typetreeFileJsonResultMap[lightKey].Get("m_Range").Float(),
+			SpotAngle:  typetreeFileJsonResultMap[lightKey].Get("m_SpotAngle").Float(),
+			Type:       typetreeFileJsonResultMap[lightKey].Get("m_Type").Int(),
+		}
+
+		lightConfigs = append(lightConfigs, lightConfig)
+	}
+
+	return lightConfigs, nil
+}
+
 func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 	stageId := strings.ReplaceAll(ctx.Params("stageId"), "__", "#")
 
@@ -466,10 +583,16 @@ func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 		return err
 	}
 
+	lightConfigs, err := c.lightConfig(ctx, staticProdVersionPath, lowerLevelId)
+	if err != nil {
+		return err
+	}
+
 	rootSceneObj := Obj{
-		Obj:         rootSceneObjUrl,
-		MeshConfigs: meshConfigs,
-		Materials:   materials,
+		Obj:          rootSceneObjUrl,
+		MeshConfigs:  meshConfigs,
+		Materials:    materials,
+		LightConfigs: lightConfigs,
 	}
 
 	map3DConfig := Map3DConfig{
