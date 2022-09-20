@@ -12,7 +12,7 @@ import (
 	"theresa-go/internal/config"
 )
 
-const akAbFsBigCacheDefaultTimeout = 2 * time.Minute
+const akAbFsGoCacheDefaultTimeout = 30 * time.Second
 const akAbFsRedisDefaultTimeout = time.Hour
 
 type CacheClient struct {
@@ -22,7 +22,7 @@ type CacheClient struct {
 }
 
 func NewCacheClient(conf *config.Config) *CacheClient {
-	goCache := goCacheLib.New(1*time.Minute, 10*time.Minute)
+	goCache := goCacheLib.New(akAbFsGoCacheDefaultTimeout, 2*akAbFsGoCacheDefaultTimeout)
 
 	redisOptions, err := redis.ParseURL(conf.RedisDsn)
 
@@ -64,8 +64,8 @@ func (cacheClient *CacheClient) SetBytes(key string, value []byte) {
 }
 
 func (cacheClient *CacheClient) SetBytesWithTimeout(key string, value []byte, timeout time.Duration) {
-	if timeout < akAbFsBigCacheDefaultTimeout {
-		log.Warn().Msg("timeout is shorter than `akAbFsBigCacheDefaultTimeout`")
+	if timeout < akAbFsGoCacheDefaultTimeout {
+		log.Warn().Msg("timeout is shorter than `akAbFsGoCacheDefaultTimeout`")
 	}
 	cacheClient.goCache.Set(key, value, goCacheLib.DefaultExpiration)
 
