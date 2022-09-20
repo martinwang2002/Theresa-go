@@ -113,6 +113,7 @@ type LightConfig struct {
 	Range      float64     `json:"range"`
 	SpotAngle  float64     `json:"spotAngle"`
 	Type       int64       `json:"type"`
+	AreaSize   XY          `json:"areaSize"`
 }
 
 func (c *StaticMap3DController) formatMaterialKey(key string) string {
@@ -424,7 +425,7 @@ func (c *StaticMap3DController) lightConfig(ctx *fiber.Ctx, staticProdVersionPat
 	if err != nil {
 		return nil, err
 	}
-	
+
 	typetreeFileJsonResultMap := typetreeFileJsonResult.Map()
 	lightKeys := make([]string, 0)
 
@@ -497,6 +498,17 @@ func (c *StaticMap3DController) lightConfig(ctx *fiber.Ctx, staticProdVersionPat
 			Range:      typetreeFileJsonResultMap[lightKey].Get("m_Range").Float(),
 			SpotAngle:  typetreeFileJsonResultMap[lightKey].Get("m_SpotAngle").Float(),
 			Type:       typetreeFileJsonResultMap[lightKey].Get("m_Type").Int(),
+			AreaSize: XY{
+				X: 0,
+				Y: 0,
+			},
+		}
+
+		if typetreeFileJsonResultMap[lightKey].Get("m_AreaSize").Exists() {
+			lightConfig.AreaSize = XY{
+				X: typetreeFileJsonResultMap[lightKey].Get("m_AreaSize.x").Float(),
+				Y: typetreeFileJsonResultMap[lightKey].Get("m_AreaSize.y").Float(),
+			}
 		}
 
 		lightConfigs = append(lightConfigs, lightConfig)
