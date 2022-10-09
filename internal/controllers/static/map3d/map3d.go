@@ -135,6 +135,45 @@ func (c *StaticMap3DController) formatMaterialKey(key string) string {
 	return formattedString
 }
 
+func (c *StaticMap3DController) stageInfo(ctx *fiber.Ctx) (map[string]gjson.Result, error) {
+	stageId := strings.ReplaceAll(ctx.Params("stageId"), "__", "#")
+
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+
+	stageTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/stage_table.json")
+
+	stageTableJsonResult, err := c.AkAbFs.NewJsonObject(stageTableJsonPath)
+	if err != nil {
+		return nil, err
+	}
+
+	stageTableJson := stageTableJsonResult.Map()
+
+	if !stageTableJson["stages"].Exists() {
+		return nil, ctx.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	stages := stageTableJson["stages"].Map()
+	if stageTableJsonResult.Get("stages." + stageId).Exists() {
+		stageInfo := stages[stageId].Map()
+		return stageInfo, nil
+	} else {
+		// rougelike stages
+		rougelikeTopicTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/roguelike_topic_table.json")
+
+		rougelikeTopicTableJsonResult, err := c.AkAbFs.NewJsonObject(rougelikeTopicTableJsonPath)
+		if err != nil {
+			return nil, err
+		}
+		rougelikeStageInfo := rougelikeTopicTableJsonResult.Get("details.*.stages." + stageId)
+		if rougelikeStageInfo.Exists() {
+			return rougelikeStageInfo.Map(), nil
+		} else {
+			return nil, fmt.Errorf("stage not found")
+		}
+	}
+}
+
 func (c *StaticMap3DController) getTypetree(ctx *fiber.Ctx, staticProdVersionPath string, lowerLevelId string) (*gjson.Result, error) {
 	sceneAbDirectoryPath := staticProdVersionPath + fmt.Sprintf("/assetbundle/scenes/%s", lowerLevelId)
 
@@ -145,7 +184,7 @@ func (c *StaticMap3DController) getTypetree(ctx *fiber.Ctx, staticProdVersionPat
 
 	sceneAbLockFileName := ""
 	for _, sceneAbDirectoryFile := range sceneAbDirectoryFiles {
-		if sceneAbDirectoryFile.Name[len(sceneAbDirectoryFile.Name)-5:] == ".lock" {
+		if len(sceneAbDirectoryFile.Name) > 5 && sceneAbDirectoryFile.Name[len(sceneAbDirectoryFile.Name)-5:] == ".lock" {
 			sceneAbLockFileName = sceneAbDirectoryFile.Name
 		}
 	}
@@ -518,26 +557,11 @@ func (c *StaticMap3DController) lightConfig(ctx *fiber.Ctx, staticProdVersionPat
 }
 
 func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
-	stageId := strings.ReplaceAll(ctx.Params("stageId"), "__", "#")
-
 	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
 
-	stageTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/stage_table.json")
-
-	stageTableJsonResult, err := c.AkAbFs.NewJsonObject(stageTableJsonPath)
+	stageInfo, err := c.stageInfo(ctx)
 	if err != nil {
 		return err
-	}
-
-	stageTableJson := stageTableJsonResult.Map()
-
-	if !stageTableJson["stages"].Exists() {
-		return ctx.SendStatus(fiber.StatusInternalServerError)
-	}
-
-	stages := stageTableJson["stages"].Map()
-	if !stages[stageId].Exists() {
-		return ctx.SendStatus(fiber.StatusNotFound)
 	}
 
 	// stageInfo := stages[ctx.Params("stageId")].Map()
@@ -561,7 +585,6 @@ func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 	rootSceneObjUrl := ctx.BaseURL() + rootSceneObjPath
 	// rootSceneLightmapUrl := ctx.BaseURL() + rootSceneLightmapPath
 
-	stageInfo := stages[stageId].Map()
 	levelId := stageInfo["levelId"].Str
 
 	battleMiscTableJson, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/battle/battle_misc_table.json")
@@ -571,7 +594,18 @@ func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 
 	if battleMiscTableJson.Get("levelScenePairs." + levelId).Exists() {
 		hookedLevelId := battleMiscTableJson.Get("levelScenePairs." + levelId + ".sceneId").Str
+		stageTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/stage_table.json")
 
+		stageTableJsonResult, err := c.AkAbFs.NewJsonObject(stageTableJsonPath)
+		if err != nil {
+			return err
+		}
+		stageTableJson := stageTableJsonResult.Map()
+		if !stageTableJson["stages"].Exists() {
+			return ctx.SendStatus(fiber.StatusInternalServerError)
+		}
+
+		stages := stageTableJson["stages"].Map()
 		for stageId, stageInfo := range stages {
 			if stageInfo.Get("levelId").Str == hookedLevelId {
 				rootScenePath, err := ctx.GetRouteURL("map3d.rootScene.config", fiber.Map{
@@ -614,29 +648,12 @@ func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 }
 
 func (c *StaticMap3DController) Map3DRootSceneObj(ctx *fiber.Ctx) error {
-	stageId := strings.ReplaceAll(ctx.Params("stageId"), "__", "#")
-
 	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
 
-	stageTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/stage_table.json")
-
-	stageTableJsonResult, err := c.AkAbFs.NewJsonObject(stageTableJsonPath)
+	stageInfo, err := c.stageInfo(ctx)
 	if err != nil {
 		return err
 	}
-
-	stageTableJson := stageTableJsonResult.Map()
-
-	if !stageTableJson["stages"].Exists() {
-		return ctx.SendStatus(fiber.StatusInternalServerError)
-	}
-
-	stages := stageTableJson["stages"].Map()
-	if !stages[stageId].Exists() {
-		return ctx.SendStatus(fiber.StatusNotFound)
-	}
-
-	stageInfo := stages[stageId].Map()
 
 	levelId := stageInfo["levelId"].Str
 
@@ -660,29 +677,12 @@ func (c *StaticMap3DController) Map3DRootSceneObj(ctx *fiber.Ctx) error {
 }
 
 func (c *StaticMap3DController) Map3DRootSceneLightmap(ctx *fiber.Ctx) error {
-	stageId := strings.ReplaceAll(ctx.Params("stageId"), "__", "#")
-
 	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
 
-	stageTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/stage_table.json")
-
-	stageTableJsonResult, err := c.AkAbFs.NewJsonObject(stageTableJsonPath)
+	stageInfo, err := c.stageInfo(ctx)
 	if err != nil {
 		return err
 	}
-
-	stageTableJson := stageTableJsonResult.Map()
-
-	if !stageTableJson["stages"].Exists() {
-		return ctx.SendStatus(fiber.StatusInternalServerError)
-	}
-
-	stages := stageTableJson["stages"].Map()
-	if !stages[stageId].Exists() {
-		return ctx.SendStatus(fiber.StatusNotFound)
-	}
-
-	stageInfo := stages[stageId].Map()
 
 	levelId := stageInfo["levelId"].Str
 
