@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -713,7 +714,12 @@ func (c *StaticMap3DController) Map3DTextureMap(ctx *fiber.Ctx) error {
 
 	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
 
-	mapTexturePath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/%s.png", ctx.Params("*"))
+	pathFromUrl, err := url.QueryUnescape(ctx.Params("*"))
+	if err != nil {
+		return ctx.SendStatus(fiber.StatusBadRequest)
+	}
+
+	mapTexturePath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/%s.png", pathFromUrl)
 
 	newObject, err := c.AkAbFs.NewObject(mapTexturePath)
 	if err != nil {
