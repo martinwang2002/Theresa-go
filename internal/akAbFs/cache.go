@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/dgraph-io/ristretto"
 	"github.com/go-redis/redis/v9"
-	goCacheLib "github.com/patrickmn/go-cache"
 	"github.com/rs/zerolog/log"
 	"github.com/tidwall/gjson"
 
@@ -16,13 +16,21 @@ const akAbFsGoCacheDefaultTimeout = 30 * time.Second
 const akAbFsRedisDefaultTimeout = time.Hour
 
 type CacheClient struct {
-	goCache      *goCacheLib.Cache
-	cacheContext context.Context
-	redisClient  *redis.Client
+	ristrettoCache *ristretto.Cache
+	cacheContext   context.Context
+	redisClient    *redis.Client
 }
 
 func NewCacheClient(conf *config.Config) *CacheClient {
-	goCache := goCacheLib.New(akAbFsGoCacheDefaultTimeout, 2*akAbFsGoCacheDefaultTimeout)
+	ristrettoCache, err := ristretto.NewCache(&ristretto.Config{
+		NumCounters: 10 * 1 << 20, // number of keys to track frequency of (10M).
+		MaxCost:     50 * 1 << 20, // maximum cost of cache (50MB).
+		BufferItems: 64,           // number of keys per Get buffer.
+	})
+
+	if err != nil {
+		panic(err)
+	}
 
 	redisOptions, err := redis.ParseURL(conf.RedisDsn)
 
@@ -33,27 +41,27 @@ func NewCacheClient(conf *config.Config) *CacheClient {
 	redisClient := redis.NewClient(redisOptions)
 
 	return &CacheClient{
-		goCache:      goCache,
-		cacheContext: context.Background(),
-		redisClient:  redisClient,
+		ristrettoCache: ristrettoCache,
+		cacheContext:   context.Background(),
+		redisClient:    redisClient,
 	}
 }
 
 func (cacheClient *CacheClient) GetBytes(key string) ([]byte, error) {
-	value, found := cacheClient.goCache.Get(key)
+	value, found := cacheClient.ristrettoCache.Get(key)
 	if found {
 		return value.([]byte), nil
 	} else {
 		value, err := cacheClient.redisClient.Get(cacheClient.cacheContext, key).Bytes()
 		if err == nil {
-			cacheClient.goCache.Set(key, value, goCacheLib.DefaultExpiration)
+			cacheClient.ristrettoCache.SetWithTTL(key, value, 0, akAbFsGoCacheDefaultTimeout)
 		}
 		return value, err
 	}
 }
 
 func (cacheClient *CacheClient) SetBytes(key string, value []byte) {
-	cacheClient.goCache.Set(key, value, goCacheLib.DefaultExpiration)
+	cacheClient.ristrettoCache.SetWithTTL(key, value, 0, akAbFsGoCacheDefaultTimeout)
 
 	defer func() {
 		err := cacheClient.redisClient.Set(cacheClient.cacheContext, key, value, akAbFsRedisDefaultTimeout).Err()
@@ -67,7 +75,7 @@ func (cacheClient *CacheClient) SetBytesWithTimeout(key string, value []byte, ti
 	if timeout < akAbFsGoCacheDefaultTimeout {
 		log.Warn().Msg("timeout is shorter than `akAbFsGoCacheDefaultTimeout`")
 	}
-	cacheClient.goCache.Set(key, value, goCacheLib.DefaultExpiration)
+	cacheClient.ristrettoCache.SetWithTTL(key, value, 0, akAbFsGoCacheDefaultTimeout)
 
 	err := cacheClient.redisClient.Set(cacheClient.cacheContext, key, value, timeout).Err()
 	if err != nil {
@@ -76,21 +84,21 @@ func (cacheClient *CacheClient) SetBytesWithTimeout(key string, value []byte, ti
 }
 
 func (cacheClient *CacheClient) GetGjsonResult(key string) (*gjson.Result, error) {
-	value, found := cacheClient.goCache.Get(key)
+	value, found := cacheClient.ristrettoCache.Get(key)
 	if found {
 		return value.(*gjson.Result), nil
 	} else {
 		bytesValue, err := cacheClient.redisClient.Get(cacheClient.cacheContext, key).Bytes()
 		value := gjson.ParseBytes(bytesValue)
 		if err == nil {
-			cacheClient.goCache.Set(key, &value, goCacheLib.DefaultExpiration)
+			cacheClient.ristrettoCache.SetWithTTL(key, &value, 0, akAbFsGoCacheDefaultTimeout)
 		}
 		return &value, err
 	}
 }
 
 func (cacheClient *CacheClient) SetGjsonResult(key string, gjsonBytes []byte, gjsonValue *gjson.Result) {
-	cacheClient.goCache.Set(key, gjsonValue, goCacheLib.DefaultExpiration)
+	cacheClient.ristrettoCache.SetWithTTL(key, gjsonValue, 0, akAbFsGoCacheDefaultTimeout)
 
 	defer func() {
 		err := cacheClient.redisClient.Set(cacheClient.cacheContext, key, gjsonBytes, akAbFsRedisDefaultTimeout).Err()
@@ -101,7 +109,7 @@ func (cacheClient *CacheClient) SetGjsonResult(key string, gjsonBytes []byte, gj
 }
 
 func (cacheClient *CacheClient) Flush() {
-	cacheClient.goCache.Flush()
+	cacheClient.ristrettoCache.Clear()
 
 	err := cacheClient.redisClient.FlushDB(cacheClient.cacheContext).Err()
 	if err != nil {
