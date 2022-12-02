@@ -85,6 +85,29 @@ func (c *StaticItemController) getItemOffsetByRootPackingTag(iconId string, root
 			}
 		}
 	}
+
+	// to compoensate hypergryph's bugs?
+	gachaFolderItems, err := c.AkAbFs.List(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/ui/gacha")
+	if err != nil {
+		return offset, err
+	}
+
+	for _, gachaFolderItem := range gachaFolderItems {
+		if !gachaFolderItem.IsDir {
+			abJson, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/ui/gacha/" + gachaFolderItem.Name)
+			if err != nil {
+				continue
+			}
+			if abJson.Get("*" + iconId + ".m_RD.textureRectOffset").Exists() {
+				offset = Offset{
+					X: int(abJson.Get("*" + iconId + ".m_RD.textureRectOffset.x").Int()),
+					Y: int(abJson.Get("*" + iconId + ".m_RD.textureRectOffset.y").Int()),
+				}
+				return offset, nil
+			}
+		}
+	}
+
 	return offset, fmt.Errorf("no offset found for %s", iconId)
 }
 
