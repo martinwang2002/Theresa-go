@@ -5,12 +5,15 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/rs/zerolog"
 
+	"github.com/gofiber/fiber/v2/middleware/cache"
+	"github.com/gofiber/storage/redis"
 	"theresa-go/internal/config"
 	"theresa-go/internal/middlewares/logger"
 )
@@ -102,8 +105,17 @@ func CreateHttpServer(conf *config.Config) (*fiber.App, *AppS3, *AppStatic) {
 	}))
 
 	if conf.DevMode {
+		// dev mode enable pprof
 		appS3.Use(pprof.New())
 		appStatic.Use(pprof.New())
+	} else {
+		// prod mode enable cache
+		appStatic.Use(cache.New(cache.Config{
+			Expiration:           7 * 24 * time.Hour,
+			CacheControl:         true,
+			Storage:              redis.New(redis.Config{URL: conf.RedisDsn}),
+			StoreResponseHeaders: true,
+		}))
 	}
 
 	// return app
