@@ -77,6 +77,7 @@ func CreateHttpServer(conf *config.Config) (*fiber.App, *AppS3, *AppStatic) {
 
 			return ctx.Status(code).SendString("Internal Server Error")
 		},
+		DisableKeepalive: true,
 	})
 
 	app.Use(logger.Logger(&log))
@@ -110,6 +111,7 @@ func CreateHttpServer(conf *config.Config) (*fiber.App, *AppS3, *AppStatic) {
 		appStatic.Use(pprof.New())
 	} else {
 		// prod mode enable cache
+		// disable when envoy supports cache
 		appStatic.Use(cache.New(cache.Config{
 			Expiration:           7 * 24 * time.Hour,
 			CacheControl:         true,
