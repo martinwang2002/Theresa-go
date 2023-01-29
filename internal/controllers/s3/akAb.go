@@ -1,7 +1,6 @@
 package s3AkAbController
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"sort"
@@ -59,12 +58,11 @@ func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
 			if err != nil {
 				return ctx.SendStatus(fiber.StatusNotFound)
 			}
-			cancelContext, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			newObjectIoReader, err := newObject.Open(cancelContext)
+			newObjectIoReader, err := newObject.Open(ctx.Context())
 			if err != nil {
 				return err
 			}
+
 			return ctx.SendStream(newObjectIoReader)
 		}
 	} else {
@@ -73,9 +71,8 @@ func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
 		if err != nil {
 			return ctx.SendStatus(fiber.StatusNotFound)
 		}
-		cancelContext, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		newObjectIoReader, err := newObject.Open(cancelContext)
+
+		newObjectIoReader, err := newObject.Open(ctx.Context())
 		if err != nil {
 			return err
 		}
