@@ -5,5 +5,5 @@ import (
 )
 
 func (c *StaticSiteController) favicon(ctx *fiber.Ctx) error {
-	return ctx.Redirect("https://theresa.wiki/favicon.svg")
+	return ctx.Redirect("https://theresa.wiki/favicon.svg", fiber.StatusMovedPermanently)
 }
