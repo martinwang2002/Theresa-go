@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/dgraph-io/ristretto"
-	"github.com/go-redis/redis/v9"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/zerolog/log"
 	"github.com/tidwall/gjson"
 
@@ -23,7 +23,7 @@ type CacheClient struct {
 
 func NewCacheClient(conf *config.Config) *CacheClient {
 	ristrettoCache, err := ristretto.NewCache(&ristretto.Config{
-		NumCounters: 10 * 1 << 20, // number of keys to track frequency of (10M).
+		NumCounters: 1 * 1 << 20,  // number of keys to track frequency of (10M).
 		MaxCost:     50 * 1 << 20, // maximum cost of cache (50MB).
 		BufferItems: 64,           // number of keys per Get buffer.
 	})

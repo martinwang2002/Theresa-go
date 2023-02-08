@@ -4,13 +4,13 @@ go 1.19
 
 require (
 	github.com/dgraph-io/ristretto v0.1.1
-	github.com/go-redis/redis/v9 v9.0.0-rc.2
 	github.com/gofiber/fiber/v2 v2.41.0
 	github.com/gofiber/storage/redis v0.0.0-20230109091934-d46ce172d62c
 	github.com/h2non/bimg v1.1.9
 	github.com/joho/godotenv v1.4.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/rclone/rclone v1.61.1
+	github.com/redis/go-redis/v9 v9.0.2
 	github.com/rs/zerolog v1.28.0
 	github.com/tidwall/gjson v1.14.4
 	github.com/u2takey/ffmpeg-go v0.4.1
@@ -57,6 +57,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
+	github.com/onsi/gomega v1.24.1 // indirect
 	github.com/oracle/oci-go-sdk/v65 v65.28.0 // indirect
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
