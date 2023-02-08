@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -43,7 +44,8 @@ func logCompleted(c *fiber.Ctx, start time.Time) {
 			Dict("response", zerolog.Dict().
 				Int("statusCode", c.Response().StatusCode()).
 				Dict("body", zerolog.Dict().
-					Int("bytes", c.Response().Header.ContentLength()),
+					Int("bytes", c.Response().Header.ContentLength()).
+					Int("bytesSent", len(c.Response().Body())),
 				),
 			),
 		).
@@ -52,5 +54,5 @@ func logCompleted(c *fiber.Ctx, start time.Time) {
 			Str("host", string(c.Context().Host())),
 		).
 		Float64("responseTimeInMs", float64(time.Since(start).Nanoseconds())/1e6).
-		Msg("Request completed")
+		Msg("[" + strconv.Itoa(c.Response().StatusCode()) + "] " + string(c.Context().Host()) + string(c.Request().URI().RequestURI()))
 }
