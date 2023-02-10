@@ -115,7 +115,7 @@ type IconInfo struct {
 	ItemSpriteBackgroundName string
 	Rarity                   int
 	Offset                   Offset
-	ItemImage                image.Image
+	ItemImage                *image.Image
 }
 
 func (c *StaticItemController) getItemFromItemTable(itemId string, staticProdVersionPath string) (IconInfo, error) {
@@ -216,7 +216,7 @@ func (c *StaticItemController) getItemFromItemTable(itemId string, staticProdVer
 		ItemSpriteBackgroundName: itemSpriteBackgroundName,
 		Rarity:                   int(rarity),
 		Offset:                   offset,
-		ItemImage:                itemImage,
+		ItemImage:                &itemImage,
 	}, nil
 }
 
@@ -308,7 +308,7 @@ func (c *StaticItemController) getFurniFromBuildingData(itemId string, staticPro
 			X: 13, // (181[image width]-153[sprite width])/2[center] - 1[offset]
 			Y: 30, // (181[image width]-85[sprite width])/2[center] - 1[offset] - 3[extra]
 		},
-		ItemImage: itemImageZoomedImage,
+		ItemImage: &itemImageZoomedImage,
 	}, nil
 }
 
@@ -345,7 +345,7 @@ func (c *StaticItemController) itemImage(itemId string, staticProdVersionPath st
 	draw.Draw(spriteItemImage, image.Rect(0, 0, 181, 181), spriteItemRXImage, image.Point{0, 0}, draw.Over)
 	draw.Draw(spriteItemImage,
 		image.Rect(1+iconInfo.Offset.X, 1+iconInfo.Offset.Y, 181, 181),
-		iconInfo.ItemImage,
+		*iconInfo.ItemImage,
 		image.Point{0, 0},
 		draw.Over,
 	)
@@ -367,6 +367,7 @@ func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
 	imageBuffer := new(bytes.Buffer)
 	defer imageBuffer.Reset()
 	png.Encode(imageBuffer, itemImageWithBackGround)
+	itemImageWithBackGround = nil
 
 	// convert to webp
 	itemWebpImage := bimg.NewImage(imageBuffer.Bytes())

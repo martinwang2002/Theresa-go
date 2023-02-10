@@ -68,16 +68,17 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 		row := index / numOfRowsAndCols
 		col := index % numOfRowsAndCols
 
-		itemImage := itemImageChannel[index]
-		itemImageError := itemImageErrorChannel[index]
-		if itemImageError != nil {
-			return itemImageError
+		if itemImageErrorChannel[index] != nil {
+			return itemImageErrorChannel[index]
 		}
 
-		draw.Draw(spriteEmptyImageRGBA, image.Rect(col*spriteImageDimension, row*spriteImageDimension, (col+1)*spriteImageDimension, (row+1)*spriteImageDimension), itemImage, image.Point{0, 0}, draw.Src)
-		if err != nil {
-			return err
-		}
+		draw.Draw(
+			spriteEmptyImageRGBA,
+			image.Rect(col*spriteImageDimension, row*spriteImageDimension, (col+1)*spriteImageDimension, (row+1)*spriteImageDimension),
+			itemImageChannel[index],
+			image.Point{0, 0},
+			draw.Src,
+		)
 	}
 
 	spritePngImageBuffer := new(bytes.Buffer)
@@ -86,6 +87,7 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 		CompressionLevel: png.BestSpeed,
 	}
 	err = encoder.Encode(spritePngImageBuffer, spriteEmptyImageRGBA)
+	spriteEmptyImageRGBA = nil
 
 	if err != nil {
 		return err

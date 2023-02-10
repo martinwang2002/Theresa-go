@@ -30,7 +30,7 @@ func RegisterStaticEnemyAvatarController(appStaticApiV0AK *versioning.AppStaticA
 	return nil
 }
 
-func (c *StaticItemController) enemyImage(enemyId string, staticProdVersionPath string) (image.Image, error) {
+func (c *StaticItemController) enemyImage(enemyId string, staticProdVersionPath string) (*image.Image, error) {
 	enemyHandbookTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/enemy_handbook_table.json")
 	enemyHandbookTableJsonResult, err := c.AkAbFs.NewJsonObject(enemyHandbookTableJsonPath)
 	if err != nil {
@@ -52,9 +52,8 @@ func (c *StaticItemController) enemyImage(enemyId string, staticProdVersionPath 
 		return nil, err
 	}
 
-	iconHubKeys := enemyIconsAbJson.Get("ahub_enemy_icons._keys").Array()
 	iconHubIndex := -1
-	for index, result := range iconHubKeys {
+	for index, result := range enemyIconsAbJson.Get("ahub_enemy_icons._keys").Array() {
 		if result.Str == strings.ToLower(enemyId) {
 			iconHubIndex = index
 			break
@@ -86,7 +85,7 @@ func (c *StaticItemController) enemyImage(enemyId string, staticProdVersionPath 
 		return nil, err
 	}
 
-	return enemyIcon, err
+	return &enemyIcon, err
 }
 
 func (c *StaticItemController) EnemyImage(ctx *fiber.Ctx) error {
@@ -100,13 +99,14 @@ func (c *StaticItemController) EnemyImage(ctx *fiber.Ctx) error {
 		// 404 if hidden in handbook, instead of raising internal server error
 		if strings.Contains(err.Error(), "hidden in handbook") {
 			return ctx.SendStatus(fiber.StatusNotFound)
-		}
+			}
 			
 		return err
 	}
 	imageBuffer := new(bytes.Buffer)
 	defer imageBuffer.Reset()
-	png.Encode(imageBuffer, enemyImage)
+	png.Encode(imageBuffer, *enemyImage)
+	enemyImage = nil
 
 	// convert to webp
 	itemWebpImage := bimg.NewImage(imageBuffer.Bytes())
@@ -119,5 +119,5 @@ func (c *StaticItemController) EnemyImage(ctx *fiber.Ctx) error {
 		return err
 	}
 
-	return ctx.SendStream(bytes.NewReader(itemWebpImageBytes))
+	return ctx.Send(itemWebpImageBytes)
 }
