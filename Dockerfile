@@ -6,8 +6,7 @@ RUN apk update && apk --no-cache add \
     vips-dev \
     ffmpeg
 WORKDIR /app
-COPY go.mod .
-COPY go.sum .
+COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 RUN go build .
@@ -18,6 +17,6 @@ RUN apk update && apk --no-cache add \
     vips-dev \
     ffmpeg
 WORKDIR /app
-COPY --from=builder /app ./
+COPY --from=builder /app/theresa-go /app/resources ./
 EXPOSE 8000
 CMD ["./theresa-go"]

@@ -329,7 +329,7 @@ func (c *StaticItemController) itemImage(itemId string, staticProdVersionPath st
 	// get rarity image
 	rarityString := strconv.Itoa(int(iconInfo.Rarity))
 
-	spriteItemRXImagePath := fmt.Sprintf("./item/%s%s.png", iconInfo.ItemSpriteBackgroundName, rarityString)
+	spriteItemRXImagePath := fmt.Sprintf("./resources/item/%s%s.png", iconInfo.ItemSpriteBackgroundName, rarityString)
 
 	spriteItemRXImageIoReader, err := os.Open(spriteItemRXImagePath)
 	if err != nil {
