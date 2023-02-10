@@ -14,6 +14,7 @@ import (
 	"go.uber.org/fx"
 
 	"theresa-go/internal/akAbFs"
+	"theresa-go/internal/controllers/static/notFound"
 	"theresa-go/internal/server/versioning"
 	"theresa-go/internal/service/staticVersionService"
 )
@@ -98,9 +99,12 @@ func (c *StaticItemController) EnemyImage(ctx *fiber.Ctx) error {
 	if err != nil {
 		// 404 if hidden in handbook, instead of raising internal server error
 		if strings.Contains(err.Error(), "hidden in handbook") {
-			return ctx.SendStatus(fiber.StatusNotFound)
+			staticNotFoundController := staticNotFoundController.StaticNotFoundController{
+				AkAbFs:               c.AkAbFs,
+				StaticVersionService: c.StaticVersionService,
 			}
-			
+			return staticNotFoundController.NotFoundSqaure(ctx)
+		}
 		return err
 	}
 	imageBuffer := new(bytes.Buffer)
