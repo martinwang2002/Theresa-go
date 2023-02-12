@@ -17,6 +17,7 @@ RUN apk update && apk --no-cache add \
     vips-dev \
     ffmpeg
 WORKDIR /app
+COPY --from=builder /app/resources ./resources
 COPY --from=builder /app/theresa-go /app/resources ./
 EXPOSE 8000
 CMD ["./theresa-go"]

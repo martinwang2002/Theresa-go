@@ -39,21 +39,21 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 
 	// generate all enemy avatars
 	var wg sync.WaitGroup
+	max := 10 // wait group concurrency limit
+	semaphore := make(chan struct{}, max)
 	wg.Add(len(enemyIds))
 
-	enemyAvatarImageChannel := make([]image.Image, numOfItems)
+	enemyAvatarImageChannel := make([]*image.Image, numOfItems)
 	enemyAvatarErrorChannel := make([]error, numOfItems)
-	defer func() {
-		enemyAvatarImageChannel = nil
-		enemyAvatarErrorChannel = nil
-	}()
 
 	for index, enemyId := range enemyIds {
 		go func(index int, enemyId string) {
 			defer wg.Done()
+			semaphore <- struct{}{} // acquire semaphore
 			enemyImage, err := c.enemyImage(enemyId, staticProdVersionPath)
-			enemyAvatarImageChannel[index] = *enemyImage
+			enemyAvatarImageChannel[index] = enemyImage
 			enemyAvatarErrorChannel[index] = err
+			<-semaphore // release semaphore
 		}(index, enemyId)
 	}
 	wg.Wait()
@@ -72,14 +72,15 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 		draw.Draw(
 			spriteEmptyImageRGBA,
 			image.Rect(col*spriteImageDimension, row*spriteImageDimension, (col+1)*spriteImageDimension, (row+1)*spriteImageDimension),
-			enemyAvatarImageChannel[index],
+			*enemyAvatarImageChannel[index],
 			image.Point{0, 0},
 			draw.Src,
 		)
 	}
+	enemyAvatarImageChannel = nil
+	enemyAvatarErrorChannel = nil
 
 	spritePngImageBuffer := new(bytes.Buffer)
-	defer spritePngImageBuffer.Reset()
 	encoder := png.Encoder{
 		CompressionLevel: png.BestSpeed,
 	}
@@ -92,6 +93,7 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 
 	// convert to webp
 	spriteItemWebpImage := bimg.NewImage(spritePngImageBuffer.Bytes())
+	spritePngImageBuffer = nil
 	spriteItemWebpImageBytes, err := spriteItemWebpImage.Process(bimg.Options{
 		Quality: 25,
 		Type:    bimg.WEBP,
@@ -113,5 +115,5 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 	ctx.Set("X-Item-Ids", string(itemIdsJson))
 	ctx.Set("Access-Control-Expose-Headers", "X-Dimension,X-Cols,X-Rows,X-Item-Ids")
 
-	return ctx.SendStream(bytes.NewReader(spriteItemWebpImageBytes))
+	return ctx.Send(spriteItemWebpImageBytes)
 }

@@ -50,6 +50,8 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 	spriteEmptyImageRGBA := image.NewRGBA(image.Rect(0, 0, numOfRowsAndCols*spriteImageDimension, (int(numOfItems/numOfRowsAndCols)+1)*spriteImageDimension))
 
 	var wg sync.WaitGroup
+	max := 10 // wait group concurrency limit
+	semaphore := make(chan struct{}, max)
 	wg.Add(len(filtereditemIds))
 
 	itemImageChannel := make([]*image.RGBA, len(filtereditemIds))
@@ -57,9 +59,11 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 	for index, itemId := range filtereditemIds {
 		go func(index int, itemId string) {
 			defer wg.Done()
+			semaphore <- struct{}{} // acquire semaphore
 			itemImage, err := c.itemImage(itemId, staticProdVersionPath)
 			itemImageChannel[index] = itemImage
 			itemImageErrorChannel[index] = err
+			<-semaphore // release semaphore
 		}(index, itemId)
 	}
 	wg.Wait()
@@ -80,9 +84,10 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 			draw.Src,
 		)
 	}
+	itemImageChannel = nil
+	itemImageErrorChannel = nil
 
 	spritePngImageBuffer := new(bytes.Buffer)
-	defer spritePngImageBuffer.Reset()
 	encoder := png.Encoder{
 		CompressionLevel: png.BestSpeed,
 	}
@@ -95,6 +100,7 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 
 	// convert to webp
 	spriteItemWebpImage := bimg.NewImage(spritePngImageBuffer.Bytes())
+	spritePngImageBuffer = nil
 	spriteItemWebpImageBytes, err := spriteItemWebpImage.Process(bimg.Options{
 		Quality: 25,
 		Type:    bimg.WEBP,
@@ -116,5 +122,5 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 	ctx.Set("X-Item-Ids", string(itemIdsJson))
 	ctx.Set("Access-Control-Expose-Headers", "X-Dimension,X-Cols,X-Rows,X-Item-Ids")
 
-	return ctx.SendStream(bytes.NewReader(spriteItemWebpImageBytes))
+	return ctx.Send(spriteItemWebpImageBytes)
 }

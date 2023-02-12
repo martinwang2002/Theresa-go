@@ -2,7 +2,6 @@ package s3AkAbController
 
 import (
 	"fmt"
-	"io"
 	"net/url"
 	"sort"
 
@@ -63,13 +62,7 @@ func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
 			if err != nil {
 				return err
 			}
-
-			newObjectIoReaderBytes, err := io.ReadAll(newObjectIoReader)
-			if err != nil {
-				return err
-			}
-			defer newObjectIoReader.Close()
-			return ctx.Send(newObjectIoReaderBytes)
+			return ctx.SendStream(newObjectIoReader)
 		}
 	} else {
 		// respond with file
@@ -82,12 +75,7 @@ func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
 		if err != nil {
 			return err
 		}
-		newObjectIoReaderBytes, err := io.ReadAll(newObjectIoReader)
-		if err != nil {
-			return err
-		}
-		defer newObjectIoReader.Close()
-		return ctx.Send(newObjectIoReaderBytes)
+		return ctx.SendStream(newObjectIoReader)
 	}
 }
 

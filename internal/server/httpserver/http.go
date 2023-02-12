@@ -78,6 +78,8 @@ func CreateHttpServer(conf *config.Config) (*fiber.App, *AppS3, *AppStatic) {
 			return ctx.Status(code).SendString("Internal Server Error")
 		},
 		DisableKeepalive: true,
+		ReadTimeout:      1 * time.Minute,
+		WriteTimeout:     1 * time.Minute,
 	})
 
 	app.Use(logger.Logger(&log))
