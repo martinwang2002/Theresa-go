@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
 	pathLib "path"
 	"sort"
@@ -227,6 +228,12 @@ func (akAbFs *AkAbFs) NewObject(path string) (fs.Object, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// 5% probability of clearing directory cache
+	if rand.Intn(100) < 5 {
+		akAbFs.googleDriveFs.Features().DirCacheFlush()
+	}
+
 	return googleDriveNewObject, nil
 }
 
