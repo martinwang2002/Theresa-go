@@ -1,5 +1,5 @@
 FROM golang:alpine AS builder
-RUN apk update && apk --no-cache add \
+RUN apk --no-cache add \
     build-base \
     ca-certificates \
     git \
@@ -12,12 +12,12 @@ COPY . .
 RUN go build .
 
 FROM alpine:latest
-RUN apk update && apk --no-cache add \
+RUN apk --no-cache add \
     ca-certificates \
     vips-dev \
     ffmpeg
 WORKDIR /app
 COPY --from=builder /app/resources ./resources
-COPY --from=builder /app/theresa-go /app/resources ./
+COPY --from=builder /app/theresa-go ./
 EXPOSE 8000
 CMD ["./theresa-go"]

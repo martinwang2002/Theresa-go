@@ -9,5 +9,5 @@ AK_AB_DATA
 
 vendor
 
-# air confi should be local or link to .air.linux.conf or .air.windows.conf
+# air config should be local or link to .air.linux.conf or .air.windows.conf
 .air.conf
