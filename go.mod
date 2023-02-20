@@ -4,17 +4,17 @@ go 1.19
 
 require (
 	github.com/dgraph-io/ristretto v0.1.1
-	github.com/gofiber/fiber/v2 v2.41.0
-	github.com/gofiber/storage/redis v0.0.0-20230109091934-d46ce172d62c
+	github.com/gofiber/fiber/v2 v2.42.0
+	github.com/gofiber/storage/redis v0.0.0-20230219094504-d677d04dd319
 	github.com/h2non/bimg v1.1.9
-	github.com/joho/godotenv v1.4.0
+	github.com/joho/godotenv v1.5.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/rclone/rclone v1.61.1
 	github.com/redis/go-redis/v9 v9.0.2
-	github.com/rs/zerolog v1.28.0
+	github.com/rs/zerolog v1.29.0
 	github.com/tidwall/gjson v1.14.4
 	github.com/u2takey/ffmpeg-go v0.4.1
-	go.uber.org/fx v1.19.0
+	go.uber.org/fx v1.19.1
 )
 
 require (
@@ -36,7 +36,6 @@ require (
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/go-chi/chi/v5 v5.0.8 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
-	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.3 // indirect
 	github.com/golang/glog v1.0.0 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
@@ -57,8 +56,8 @@ require (
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
-	github.com/onsi/gomega v1.24.1 // indirect
 	github.com/oracle/oci-go-sdk/v65 v65.28.0 // indirect
+	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/xattr v0.4.9 // indirect
@@ -70,17 +69,20 @@ require (
 	github.com/rclone/ftp v1.0.0-220913-160 // indirect
 	github.com/rfjakob/eme v1.1.2 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
+	github.com/savsgio/dictpool v0.0.0-20221023140959-7bf2e61cea94 // indirect
+	github.com/savsgio/gotils v0.0.0-20220530130905-52f3993e8d6d // indirect
 	github.com/shirou/gopsutil/v3 v3.22.12 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tinylib/msgp v1.1.6 // indirect
 	github.com/tklauser/go-sysconf v0.3.11 // indirect
 	github.com/tklauser/numcpus v0.6.0 // indirect
 	github.com/u2takey/go-utils v0.3.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.43.0 // indirect
+	github.com/valyala/fasthttp v1.44.0 // indirect
 	github.com/valyala/tcplisten v1.0.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.opencensus.io v0.24.0 // indirect
