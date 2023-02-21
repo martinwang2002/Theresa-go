@@ -1,6 +1,7 @@
 package staticVersionService
 
 import (
+	"context"
 	"fmt"
 
 	"theresa-go/internal/akAbFs"
@@ -19,8 +20,8 @@ func NewStaticVersionService(akAbFs *akAbFs.AkAbFs, akVersionService *akVersionS
 	}
 }
 
-func (s *StaticVersionService) StaticProdVersion(server string, platform string) string {
-	latestVersion, err := s.AkVersionService.LatestVersion(server, platform)
+func (s *StaticVersionService) StaticProdVersion(ctx context.Context, server string, platform string) string {
+	latestVersion, err := s.AkVersionService.LatestVersion(ctx, server, platform)
 	if err != nil {
 		panic(err)
 	}
@@ -28,8 +29,8 @@ func (s *StaticVersionService) StaticProdVersion(server string, platform string)
 
 }
 
-func (s *StaticVersionService) StaticProdVersionPath(server string, platform string) string {
-	resVersion := s.StaticProdVersion(server, platform)
+func (s *StaticVersionService) StaticProdVersionPath(ctx context.Context, server string, platform string) string {
+	resVersion := s.StaticProdVersion(ctx, server, platform)
 
 	return fmt.Sprintf("AK/%s/%s/assets/%s", server, platform, resVersion)
 }

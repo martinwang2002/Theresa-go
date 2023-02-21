@@ -18,11 +18,11 @@ import (
 )
 
 func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
-	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"))
 
 	itemTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/item_table.json")
 
-	itemTableJsonResult, err := c.AkAbFs.NewJsonObject(itemTableJsonPath)
+	itemTableJsonResult, err := c.AkAbFs.NewJsonObject(ctx.UserContext(), itemTableJsonPath)
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 		go func(index int, itemId string) {
 			defer wg.Done()
 			semaphore <- struct{}{} // acquire semaphore
-			itemImage, err := c.itemImage(itemId, staticProdVersionPath)
+			itemImage, err := c.itemImage(ctx.UserContext(), itemId, staticProdVersionPath)
 			itemImageChannel[index] = itemImage
 			itemImageErrorChannel[index] = err
 			<-semaphore // release semaphore

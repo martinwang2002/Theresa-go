@@ -2,7 +2,6 @@ package staticNotFoundController
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 
 	"github.com/gofiber/fiber/v2"
@@ -20,19 +19,16 @@ type StaticNotFoundController struct {
 }
 
 func (c *StaticNotFoundController) NotFoundSqaure(ctx *fiber.Ctx) error {
-	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"))
 
 	missingTilePath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/arts/[pack]common/missing.png")
 
-	newObject, err := c.AkAbFs.NewObject(missingTilePath)
+	newObject, err := c.AkAbFs.NewObject(ctx.UserContext(), missingTilePath)
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
 
-	cancelContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	newObjectIoReader, err := newObject.Open(cancelContext)
+	newObjectIoReader, err := newObject.Open(ctx.UserContext())
 	if err != nil {
 		return err
 	}

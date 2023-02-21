@@ -2,7 +2,6 @@ package staticMapPreviewController
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"strconv"
 
@@ -60,14 +59,14 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 		return ctx.SendStatus(fiber.StatusBadRequest)
 	}
 
-	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"))
 
 	mapPreviewPath := fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/arts/ui/stage/mappreviews/%s.png", ctx.Params("mapId"))
 
-	mapPreviewObject, err := c.AkAbFs.NewObject(staticProdVersionPath + mapPreviewPath)
+	mapPreviewObject, err := c.AkAbFs.NewObject(ctx.UserContext(), staticProdVersionPath+mapPreviewPath)
 	if err != nil {
 		stageTablePath := staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/stage_table.json"
-		stageTableJsonResult, err := c.AkAbFs.NewJsonObject(stageTablePath)
+		stageTableJsonResult, err := c.AkAbFs.NewJsonObject(ctx.UserContext(), stageTablePath)
 		if err != nil {
 			return ctx.SendStatus(fiber.StatusInternalServerError)
 		}
@@ -81,7 +80,7 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 		}
 
 		battleMiscTablePath := staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/battle/battle_misc_table.json"
-		battleMiscTableJsonResult, err := c.AkAbFs.NewJsonObject(battleMiscTablePath)
+		battleMiscTableJsonResult, err := c.AkAbFs.NewJsonObject(ctx.UserContext(), battleMiscTablePath)
 		if err != nil {
 			return ctx.SendStatus(fiber.StatusInternalServerError)
 		}
@@ -89,7 +88,7 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 		hookedMapPreviewId := battleMiscTableJsonResult.Get(fmt.Sprintf("levelScenePairs.%s.hookedMapPreviewId", levelId)).Str
 		if hookedMapPreviewId == "" {
 			// try smart route
-			mapPreviewObject, err = c.AkAbFs.NewObjectSmart(ctx.Params("server"), ctx.Params("platform"), mapPreviewPath)
+			mapPreviewObject, err = c.AkAbFs.NewObjectSmart(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"), mapPreviewPath)
 
 			if err != nil {
 				return ctx.SendStatus(fiber.StatusNotFound)
@@ -108,9 +107,7 @@ func (c *StaticMapPreviewController) MapPreview(ctx *fiber.Ctx) error {
 			return ctx.Redirect(mainMapIdUrl)
 		}
 	}
-	cancelContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	mapPreviewObjectIoReader, err := mapPreviewObject.Open(cancelContext)
+	mapPreviewObjectIoReader, err := mapPreviewObject.Open(ctx.UserContext())
 	if err != nil {
 		return err
 	}

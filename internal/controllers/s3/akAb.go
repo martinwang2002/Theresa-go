@@ -39,7 +39,7 @@ func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
 		// get file path
 		path := fmt.Sprintf(
 			"%s/%s",
-			c.AkVersionService.RealLatestVersionPath(ctx.Params("server"), ctx.Params("platform"), ctx.Params("resVersion")),
+			c.AkVersionService.RealLatestVersionPath(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"), ctx.Params("resVersion")),
 			urlPath,
 		)
 
@@ -48,17 +48,17 @@ func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
 		}
 
 		// try list directory first
-		entries, err := c.AkAbFs.List(path)
+		entries, err := c.AkAbFs.List(ctx.UserContext(), path)
 
 		if err == nil {
 			return ctx.JSON(entries)
 		} else {
 			// respond with file
-			newObject, err := c.AkAbFs.NewObject(path)
+			newObject, err := c.AkAbFs.NewObject(ctx.UserContext(), path)
 			if err != nil {
 				return ctx.SendStatus(fiber.StatusNotFound)
 			}
-			newObjectIoReader, err := newObject.Open(ctx.Context())
+			newObjectIoReader, err := newObject.Open(ctx.UserContext())
 			if err != nil {
 				return err
 			}
@@ -66,12 +66,12 @@ func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
 		}
 	} else {
 		// respond with file
-		newObject, err := c.AkAbFs.NewObjectSmart(ctx.Params("server"), ctx.Params("platform"), urlPath)
+		newObject, err := c.AkAbFs.NewObjectSmart(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"), urlPath)
 		if err != nil {
 			return ctx.SendStatus(fiber.StatusNotFound)
 		}
 
-		newObjectIoReader, err := newObject.Open(ctx.Context())
+		newObjectIoReader, err := newObject.Open(ctx.UserContext())
 		if err != nil {
 			return err
 		}
@@ -80,7 +80,7 @@ func (c *S3AkController) DirectoryHandler(ctx *fiber.Ctx) error {
 }
 
 func (c *S3AkController) LatestVersion(ctx *fiber.Ctx) error {
-	versionFileJson, err := c.AkVersionService.LatestVersion(ctx.Params("server"), ctx.Params("platform"))
+	versionFileJson, err := c.AkVersionService.LatestVersion(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"))
 
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func (c *S3AkController) LatestVersion(ctx *fiber.Ctx) error {
 }
 
 func (c *S3AkController) Versions(ctx *fiber.Ctx) error {
-	entries, err := c.AkAbFs.List(fmt.Sprintf("AK/%s/%s/assets", ctx.Params("server"), ctx.Params("platform")))
+	entries, err := c.AkAbFs.List(ctx.UserContext(), fmt.Sprintf("AK/%s/%s/assets", ctx.Params("server"), ctx.Params("platform")))
 	if err != nil {
 		return err
 	}

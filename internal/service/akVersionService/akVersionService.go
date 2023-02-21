@@ -27,18 +27,16 @@ type VersionFileJson struct {
 	AkAbHash      string `json:"_AK_AB_HASH"`
 }
 
-func (s *AkVersionService) LatestVersion(server string, platform string) (VersionFileJson, error) {
+func (s *AkVersionService) LatestVersion(ctx context.Context, server string, platform string) (VersionFileJson, error) {
 	var versionFileJson VersionFileJson
 
 	// load version file
-	versionFile, err := s.AkAbFs.NewObject(fmt.Sprintf("AK/%s/%s/version.json", server, platform))
+	versionFile, err := s.AkAbFs.NewObject(ctx, fmt.Sprintf("AK/%s/%s/version.json", server, platform))
 	if err != nil {
 		return versionFileJson, err
 	}
 	// convert version file to json
-	cancelContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	versionFileIoReader, err := versionFile.Open(cancelContext)
+	versionFileIoReader, err := versionFile.Open(ctx)
 	if err != nil {
 		return versionFileJson, err
 	}
@@ -49,16 +47,15 @@ func (s *AkVersionService) LatestVersion(server string, platform string) (Versio
 	defer versionFileIoReader.Close()
 
 	json.Unmarshal(versionFileBytes, &versionFileJson)
-
-	prevVersionFileBytes, err := s.AkAbFs.CacheClient.GetBytes("LatestVersion" + server + platform)
+	prevVersionFileBytes, err := s.AkAbFs.CacheClient.GetBytes(ctx, "LatestVersion"+server+platform)
 
 	setCache := func() {
-		s.AkAbFs.CacheClient.SetBytesWithTimeout("LatestVersion"+server+platform, versionFileBytes, 5*time.Minute)
+		s.AkAbFs.CacheClient.SetBytesWithTimeout(ctx, "LatestVersion"+server+platform, versionFileBytes, 5*time.Minute)
 	}
 
 	if err == nil {
 		if !bytes.Equal(prevVersionFileBytes, versionFileBytes) {
-			s.AkAbFs.CacheClient.Flush()
+			s.AkAbFs.CacheClient.Flush(ctx)
 			setCache()
 		}
 	} else {
@@ -68,9 +65,9 @@ func (s *AkVersionService) LatestVersion(server string, platform string) (Versio
 	return versionFileJson, nil
 }
 
-func (s *AkVersionService) RealLatestVersion(server string, platform string, resVersion string) string {
+func (s *AkVersionService) RealLatestVersion(ctx context.Context, server string, platform string, resVersion string) string {
 	if resVersion == "latest" {
-		latestVersion, err := s.LatestVersion(server, platform)
+		latestVersion, err := s.LatestVersion(ctx, server, platform)
 		if err != nil {
 			panic(err)
 		}
@@ -79,9 +76,9 @@ func (s *AkVersionService) RealLatestVersion(server string, platform string, res
 	return resVersion
 }
 
-func (s *AkVersionService) RealLatestVersionPath(server string, platform string, resVersion string) string {
+func (s *AkVersionService) RealLatestVersionPath(ctx context.Context, server string, platform string, resVersion string) string {
 	if resVersion == "latest" {
-		latestVersion, err := s.LatestVersion(server, platform)
+		latestVersion, err := s.LatestVersion(ctx, server, platform)
 		if err != nil {
 			panic(err)
 		}

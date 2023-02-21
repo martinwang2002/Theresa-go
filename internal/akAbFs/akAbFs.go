@@ -147,12 +147,12 @@ type JsonDirEntry struct {
 	IsDir bool   `json:"isDir"`
 }
 
-func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
+func (akAbFs *AkAbFs) List(ctx context.Context, path string) (JsonDirEntries, error) {
 	akAbFs.mu.Lock()
 	defer akAbFs.mu.Unlock()
 
 	// use cache if available
-	cachedEntriesBytes, err := akAbFs.CacheClient.GetBytes("List" + path)
+	cachedEntriesBytes, err := akAbFs.CacheClient.GetBytes(ctx, "List"+path)
 	if err == nil {
 		var buffer bytes.Buffer
 		buffer.Write(cachedEntriesBytes)
@@ -190,41 +190,35 @@ func (akAbFs *AkAbFs) List(path string) (JsonDirEntries, error) {
 	var buffer bytes.Buffer
 	err = gob.NewEncoder(&buffer).Encode(jsonEntries)
 	if err == nil {
-		akAbFs.CacheClient.SetBytes("List"+path, buffer.Bytes())
+		akAbFs.CacheClient.SetBytes(ctx, "List"+path, buffer.Bytes())
 	}
 	return jsonEntries, nil
 }
 
-func (akAbFs *AkAbFs) localNewObject(path string) (fs.Object, error) {
-	cancelContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	localNewObject, err := akAbFs.localFs.NewObject(cancelContext, path)
+func (akAbFs *AkAbFs) localNewObject(ctx context.Context, path string) (fs.Object, error) {
+	localNewObject, err := akAbFs.localFs.NewObject(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 	return localNewObject, nil
 }
 
-func (akAbFs *AkAbFs) googleDriveNewObject(path string) (fs.Object, error) {
-	cancelContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	googleDriveNewObject, err := akAbFs.googleDriveFs.NewObject(cancelContext, path)
+func (akAbFs *AkAbFs) googleDriveNewObject(ctx context.Context, path string) (fs.Object, error) {
+	googleDriveNewObject, err := akAbFs.googleDriveFs.NewObject(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 	return googleDriveNewObject, nil
 }
 
-func (akAbFs *AkAbFs) NewObject(path string) (fs.Object, error) {
-	localNewObject, err := akAbFs.localNewObject(path)
+func (akAbFs *AkAbFs) NewObject(ctx context.Context, path string) (fs.Object, error) {
+	localNewObject, err := akAbFs.localNewObject(ctx, path)
 
 	if err == nil {
 		return localNewObject, nil
 	}
 
-	googleDriveNewObject, err := akAbFs.googleDriveNewObject(path)
+	googleDriveNewObject, err := akAbFs.googleDriveNewObject(ctx, path)
 	if err != nil {
 		return nil, err
 	}
@@ -237,44 +231,41 @@ func (akAbFs *AkAbFs) NewObject(path string) (fs.Object, error) {
 	return googleDriveNewObject, nil
 }
 
-func (akAbFs *AkAbFs) NewJsonObject(path string) (*gjson.Result, error) {
+func (akAbFs *AkAbFs) NewJsonObject(ctx context.Context, path string) (*gjson.Result, error) {
 	akAbFs.mu.Lock()
 	defer akAbFs.mu.Unlock()
 
 	// use cache if available
-	cachedNewJsonObjectGjsonResult, err := akAbFs.CacheClient.GetGjsonResult("NewJsonObject" + path)
+	cachedNewJsonObjectGjsonResult, err := akAbFs.CacheClient.GetGjsonResult(ctx, "NewJsonObject"+path)
 	if err == nil {
 		return cachedNewJsonObjectGjsonResult, nil
 	}
 
-	cancelContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	Object, err := akAbFs.NewObject(path)
+	Object, err := akAbFs.NewObject(ctx, path)
 
 	if err != nil {
 		return nil, err
 	}
 
-	ObjectIoReader, err := Object.Open(cancelContext)
+	ObjectIoReader, err := Object.Open(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
 	ObjectIoReaderBytes, err := io.ReadAll(ObjectIoReader)
+	ObjectIoReader.Close()
 	if err != nil {
 		return nil, err
 	}
-	defer ObjectIoReader.Close()
 
 	gjsonResult := gjson.ParseBytes(ObjectIoReaderBytes)
-	akAbFs.CacheClient.SetGjsonResult("NewJsonObject"+path, ObjectIoReaderBytes, &gjsonResult)
+	akAbFs.CacheClient.SetGjsonResult(ctx, "NewJsonObject"+path, ObjectIoReaderBytes, &gjsonResult)
 
 	return &gjsonResult, nil
 }
 
-func (akAbFs *AkAbFs) NewObjectSmart(server string, platform string, path string) (fs.Object, error) {
+func (akAbFs *AkAbFs) NewObjectSmart(ctx context.Context, server string, platform string, path string) (fs.Object, error) {
 	path = strings.ReplaceAll(path, "//", "/")
 	// remove starting /
 	path = strings.TrimPrefix(path, "/")
@@ -282,7 +273,7 @@ func (akAbFs *AkAbFs) NewObjectSmart(server string, platform string, path string
 	// try load object file first
 
 	// load version file
-	versionFileJson, err := akAbFs.NewJsonObject(fmt.Sprintf("AK/%s/%s/version.json", server, platform))
+	versionFileJson, err := akAbFs.NewJsonObject(ctx, fmt.Sprintf("AK/%s/%s/version.json", server, platform))
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +282,7 @@ func (akAbFs *AkAbFs) NewObjectSmart(server string, platform string, path string
 
 	localObjectPath := fmt.Sprintf("AK/%s/%s/assets/%s/%s", server, platform, resVersion, path)
 
-	localNewObject, err := akAbFs.localNewObject(localObjectPath)
+	localNewObject, err := akAbFs.localNewObject(ctx, localObjectPath)
 
 	if err == nil {
 		return localNewObject, nil
@@ -300,7 +291,7 @@ func (akAbFs *AkAbFs) NewObjectSmart(server string, platform string, path string
 	// load from google drive
 
 	// list dirs
-	dirEntries, err := akAbFs.List(fmt.Sprintf("AK/%s/%s/assets", server, platform))
+	dirEntries, err := akAbFs.List(ctx, fmt.Sprintf("AK/%s/%s/assets", server, platform))
 
 	if err != nil {
 		return nil, err
@@ -319,7 +310,7 @@ func (akAbFs *AkAbFs) NewObjectSmart(server string, platform string, path string
 	for _, resVersion := range folders {
 		googleDriveObjectPath := fmt.Sprintf("AK/%s/%s/assets/%s/%s", server, platform, resVersion, path)
 
-		googleDriveNewObject, err := akAbFs.googleDriveNewObject(googleDriveObjectPath)
+		googleDriveNewObject, err := akAbFs.googleDriveNewObject(ctx, googleDriveObjectPath)
 		if err == nil {
 			return googleDriveNewObject, nil
 		}

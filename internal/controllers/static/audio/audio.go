@@ -2,7 +2,6 @@ package staticAudioController
 
 import (
 	"bytes"
-	"context"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -33,15 +32,13 @@ func (c *StaticAudioController) Audio(ctx *fiber.Ctx) error {
 	audioFilePath := audioPath[:indexOfDot] + ".wav"
 	audioFileExtension := audioPath[indexOfDot+1:]
 
-	audioObject, err := c.AkAbFs.NewObjectSmart(ctx.Params("server"), ctx.Params("platform"), "/unpacked_assetbundle/assets/torappu/dynamicassets/audio/"+audioFilePath)
+	audioObject, err := c.AkAbFs.NewObjectSmart(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"), "/unpacked_assetbundle/assets/torappu/dynamicassets/audio/"+audioFilePath)
 
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
 
-	cancelContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	audioObjectIoReader, err := audioObject.Open(cancelContext)
+	audioObjectIoReader, err := audioObject.Open(ctx.UserContext())
 
 	if err != nil {
 		return err

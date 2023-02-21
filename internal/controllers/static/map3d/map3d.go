@@ -2,7 +2,6 @@ package staticMap3DController
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"net/url"
 	"strings"
@@ -139,11 +138,11 @@ func (c *StaticMap3DController) formatMaterialKey(key string) string {
 func (c *StaticMap3DController) stageInfo(ctx *fiber.Ctx) (map[string]gjson.Result, error) {
 	stageId := strings.ReplaceAll(ctx.Params("stageId"), "__", "#")
 
-	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"))
 
 	stageTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/stage_table.json")
 
-	stageTableJsonResult, err := c.AkAbFs.NewJsonObject(stageTableJsonPath)
+	stageTableJsonResult, err := c.AkAbFs.NewJsonObject(ctx.UserContext(), stageTableJsonPath)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +161,7 @@ func (c *StaticMap3DController) stageInfo(ctx *fiber.Ctx) (map[string]gjson.Resu
 		// rougelike stages
 		rougelikeTopicTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/roguelike_topic_table.json")
 
-		rougelikeTopicTableJsonResult, err := c.AkAbFs.NewJsonObject(rougelikeTopicTableJsonPath)
+		rougelikeTopicTableJsonResult, err := c.AkAbFs.NewJsonObject(ctx.UserContext(), rougelikeTopicTableJsonPath)
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +177,7 @@ func (c *StaticMap3DController) stageInfo(ctx *fiber.Ctx) (map[string]gjson.Resu
 func (c *StaticMap3DController) getTypetree(ctx *fiber.Ctx, staticProdVersionPath string, lowerLevelId string) (*gjson.Result, error) {
 	sceneAbDirectoryPath := staticProdVersionPath + fmt.Sprintf("/assetbundle/scenes/%s", lowerLevelId)
 
-	sceneAbDirectoryFiles, err := c.AkAbFs.List(sceneAbDirectoryPath)
+	sceneAbDirectoryFiles, err := c.AkAbFs.List(ctx.UserContext(), sceneAbDirectoryPath)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +195,7 @@ func (c *StaticMap3DController) getTypetree(ctx *fiber.Ctx, staticProdVersionPat
 
 	sceneAbLockPath := sceneAbDirectoryPath + "/" + sceneAbLockFileName
 
-	sceneAbLockJsonResult, err := c.AkAbFs.NewJsonObject(sceneAbLockPath)
+	sceneAbLockJsonResult, err := c.AkAbFs.NewJsonObject(ctx.UserContext(), sceneAbLockPath)
 
 	if err != nil {
 		return nil, err
@@ -224,7 +223,7 @@ func (c *StaticMap3DController) getTypetree(ctx *fiber.Ctx, staticProdVersionPat
 		return nil, fmt.Errorf("no typetree found")
 	}
 
-	typetreeFileJsonResult, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/" + typetreeFile)
+	typetreeFileJsonResult, err := c.AkAbFs.NewJsonObject(ctx.UserContext(), staticProdVersionPath+"/"+typetreeFile)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +265,7 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 	for _, preloadDataFileJsonDependency := range preloadDataFileJsonDependencies {
 		// get files in the lock file
 		preloadDataFileJsonDependencyLockFile := strings.Replace(preloadDataFileJsonDependency.Str, ".ab", ".lock", 1)
-		preloadDataFileJsonDependencyLockFileJsonResult, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/assetbundle/" + preloadDataFileJsonDependencyLockFile)
+		preloadDataFileJsonDependencyLockFileJsonResult, err := c.AkAbFs.NewJsonObject(ctx.UserContext(), staticProdVersionPath+"/assetbundle/"+preloadDataFileJsonDependencyLockFile)
 
 		if err != nil {
 			return nil, nil, err
@@ -275,7 +274,7 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 		for _, preloadDataFileJsonDependencyLockFileJsonFile := range preloadDataFileJsonDependencyLockFileJsonResult.Map()["files"].Array() {
 			// load typetree
 			if strings.Contains(preloadDataFileJsonDependencyLockFileJsonFile.Str, ".ab.json") {
-				resourceInPreloadDataFileJsonResult, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/" + preloadDataFileJsonDependencyLockFileJsonFile.Str)
+				resourceInPreloadDataFileJsonResult, err := c.AkAbFs.NewJsonObject(ctx.UserContext(), staticProdVersionPath+"/"+preloadDataFileJsonDependencyLockFileJsonFile.Str)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -558,7 +557,7 @@ func (c *StaticMap3DController) lightConfig(ctx *fiber.Ctx, staticProdVersionPat
 }
 
 func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
-	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"))
 
 	stageInfo, err := c.stageInfo(ctx)
 	if err != nil {
@@ -588,7 +587,7 @@ func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 
 	levelId := stageInfo["levelId"].Str
 
-	battleMiscTableJson, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/battle/battle_misc_table.json")
+	battleMiscTableJson, err := c.AkAbFs.NewJsonObject(ctx.UserContext(), staticProdVersionPath+"/unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/battle/battle_misc_table.json")
 	if err != nil {
 		return err
 	}
@@ -597,7 +596,7 @@ func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 		hookedLevelId := battleMiscTableJson.Get("levelScenePairs." + levelId + ".sceneId").Str
 		stageTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/stage_table.json")
 
-		stageTableJsonResult, err := c.AkAbFs.NewJsonObject(stageTableJsonPath)
+		stageTableJsonResult, err := c.AkAbFs.NewJsonObject(ctx.UserContext(), stageTableJsonPath)
 		if err != nil {
 			return err
 		}
@@ -649,7 +648,7 @@ func (c *StaticMap3DController) Map3DConfig(ctx *fiber.Ctx) error {
 }
 
 func (c *StaticMap3DController) Map3DRootSceneObj(ctx *fiber.Ctx) error {
-	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.UserContext(),ctx.Params("server"), ctx.Params("platform"))
 
 	stageInfo, err := c.stageInfo(ctx)
 	if err != nil {
@@ -664,13 +663,12 @@ func (c *StaticMap3DController) Map3DRootSceneObj(ctx *fiber.Ctx) error {
 
 	mapPreviewPath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/scenes/%s/%s.ab/1_Mesh_Combined Mesh (root_ scene).obj", lowerLevelId, splittedLowerLevelId[len(splittedLowerLevelId)-1])
 
-	newObject, err := c.AkAbFs.NewObject(mapPreviewPath)
+	newObject, err := c.AkAbFs.NewObject(ctx.UserContext(), mapPreviewPath)
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
-	cancelContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	newObjectIoReader, err := newObject.Open(cancelContext)
+
+	newObjectIoReader, err := newObject.Open(ctx.UserContext())
 	if err != nil {
 		return err
 	}
@@ -678,7 +676,7 @@ func (c *StaticMap3DController) Map3DRootSceneObj(ctx *fiber.Ctx) error {
 }
 
 func (c *StaticMap3DController) Map3DRootSceneLightmap(ctx *fiber.Ctx) error {
-	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"))
 
 	stageInfo, err := c.stageInfo(ctx)
 	if err != nil {
@@ -693,13 +691,12 @@ func (c *StaticMap3DController) Map3DRootSceneLightmap(ctx *fiber.Ctx) error {
 
 	mapPreviewPath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/scenes/%s/%s/lightmap-0_comp_light.png", lowerLevelId, splittedLowerLevelId[len(splittedLowerLevelId)-1])
 
-	newObject, err := c.AkAbFs.NewObject(mapPreviewPath)
+	newObject, err := c.AkAbFs.NewObject(ctx.UserContext(), mapPreviewPath)
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
-	cancelContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	newObjectIoReader, err := newObject.Open(cancelContext)
+
+	newObjectIoReader, err := newObject.Open(ctx.UserContext())
 	if err != nil {
 		return err
 	}
@@ -712,7 +709,7 @@ func (c *StaticMap3DController) Map3DRootSceneLightmap(ctx *fiber.Ctx) error {
 // texture map in arts/maps/...
 func (c *StaticMap3DController) Map3DTextureMap(ctx *fiber.Ctx) error {
 
-	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"))
 
 	pathFromUrl, err := url.QueryUnescape(ctx.Params("*"))
 	if err != nil {
@@ -721,13 +718,12 @@ func (c *StaticMap3DController) Map3DTextureMap(ctx *fiber.Ctx) error {
 
 	mapTexturePath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/arts/maps/%s.png", pathFromUrl)
 
-	newObject, err := c.AkAbFs.NewObject(mapTexturePath)
+	newObject, err := c.AkAbFs.NewObject(ctx.UserContext(), mapTexturePath)
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}
-	cancelContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	newObjectIoReader, err := newObject.Open(cancelContext)
+
+	newObjectIoReader, err := newObject.Open(ctx.UserContext())
 	if err != nil {
 		return err
 	}

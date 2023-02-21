@@ -16,10 +16,10 @@ import (
 )
 
 func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
-	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"))
 
 	enemyHandbookTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/enemy_handbook_table.json")
-	enemyHandbookTableJsonResult, err := c.AkAbFs.NewJsonObject(enemyHandbookTableJsonPath)
+	enemyHandbookTableJsonResult, err := c.AkAbFs.NewJsonObject(ctx.UserContext(), enemyHandbookTableJsonPath)
 	if err != nil {
 		return err
 	}
@@ -35,7 +35,7 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 	}
 
 	numOfItems := len(enemyIds)
-	numOfRowsAndCols := int(math.Sqrt(float64(numOfItems))) + 1
+	numOfRowsAndCols := int(math.Ceil(math.Sqrt(float64(numOfItems))))
 
 	// generate all enemy avatars
 	var wg sync.WaitGroup
@@ -43,14 +43,14 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 	semaphore := make(chan struct{}, max)
 	wg.Add(len(enemyIds))
 
-	enemyAvatarImageChannel := make([]*image.Image, numOfItems)
+	enemyAvatarImageChannel := make([]image.Image, numOfItems)
 	enemyAvatarErrorChannel := make([]error, numOfItems)
 
 	for index, enemyId := range enemyIds {
 		go func(index int, enemyId string) {
 			defer wg.Done()
 			semaphore <- struct{}{} // acquire semaphore
-			enemyImage, err := c.enemyImage(enemyId, staticProdVersionPath)
+			enemyImage, err := c.enemyImage(ctx.UserContext(), enemyId, staticProdVersionPath)
 			enemyAvatarImageChannel[index] = enemyImage
 			enemyAvatarErrorChannel[index] = err
 			<-semaphore // release semaphore
@@ -72,7 +72,7 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 		draw.Draw(
 			spriteEmptyImageRGBA,
 			image.Rect(col*spriteImageDimension, row*spriteImageDimension, (col+1)*spriteImageDimension, (row+1)*spriteImageDimension),
-			*enemyAvatarImageChannel[index],
+			enemyAvatarImageChannel[index],
 			image.Point{0, 0},
 			draw.Src,
 		)

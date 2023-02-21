@@ -37,11 +37,11 @@ type Offset struct {
 	Y int
 }
 
-func (c *StaticItemController) getItemOffsetByRootPackingTag(iconId string, rootPackingTag string, staticProdVersionPath string) (Offset, error) {
+func (c *StaticItemController) getItemOffsetByRootPackingTag(ctx context.Context, iconId string, rootPackingTag string, staticProdVersionPath string) (Offset, error) {
 	var offset Offset
 
 	// find in sprite folder
-	spritesFolderItems, err := c.AkAbFs.List(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/spritepack")
+	spritesFolderItems, err := c.AkAbFs.List(ctx, staticProdVersionPath+"/unpacked_assetbundle/assets/torappu/dynamicassets/spritepack")
 	if err != nil {
 		return offset, err
 	}
@@ -49,7 +49,7 @@ func (c *StaticItemController) getItemOffsetByRootPackingTag(iconId string, root
 	for _, spriteFolderItem := range spritesFolderItems {
 		if !spriteFolderItem.IsDir && strings.HasPrefix(spriteFolderItem.Name, strings.ToLower(rootPackingTag)) {
 
-			abJson, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/spritepack/" + spriteFolderItem.Name)
+			abJson, err := c.AkAbFs.NewJsonObject(ctx, staticProdVersionPath+"/unpacked_assetbundle/assets/torappu/dynamicassets/spritepack/"+spriteFolderItem.Name)
 
 			if err != nil {
 				continue
@@ -65,36 +65,14 @@ func (c *StaticItemController) getItemOffsetByRootPackingTag(iconId string, root
 	}
 
 	// find in acitivity
-	activityFolderItems, err := c.AkAbFs.List(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/activity")
+	activityFolderItems, err := c.AkAbFs.List(ctx, staticProdVersionPath+"/unpacked_assetbundle/assets/torappu/dynamicassets/activity")
 	if err != nil {
 		return offset, err
 	}
 
 	for _, spriteFolderItem := range activityFolderItems {
 		if !spriteFolderItem.IsDir && strings.HasPrefix(spriteFolderItem.Name, "commonassets") {
-			abJson, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/activity/" + spriteFolderItem.Name)
-			if err != nil {
-				continue
-			}
-			if abJson.Get("*" + iconId + ".m_RD.textureRectOffset").Exists() {
-				offset = Offset{
-					X: int(abJson.Get("*" + iconId + ".m_RD.textureRectOffset.x").Int()),
-					Y: int(abJson.Get("*" + iconId + ".m_RD.textureRectOffset.y").Int()),
-				}
-				return offset, nil
-			}
-		}
-	}
-
-	// to compoensate hypergryph's bugs?
-	gachaFolderItems, err := c.AkAbFs.List(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/ui/gacha")
-	if err != nil {
-		return offset, err
-	}
-
-	for _, gachaFolderItem := range gachaFolderItems {
-		if !gachaFolderItem.IsDir {
-			abJson, err := c.AkAbFs.NewJsonObject(staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/ui/gacha/" + gachaFolderItem.Name)
+			abJson, err := c.AkAbFs.NewJsonObject(ctx, staticProdVersionPath+"/unpacked_assetbundle/assets/torappu/dynamicassets/activity/"+spriteFolderItem.Name)
 			if err != nil {
 				continue
 			}
@@ -118,11 +96,11 @@ type IconInfo struct {
 	ItemImage                *image.Image
 }
 
-func (c *StaticItemController) getItemFromItemTable(itemId string, staticProdVersionPath string) (IconInfo, error) {
+func (c *StaticItemController) getItemFromItemTable(ctx context.Context, itemId string, staticProdVersionPath string) (IconInfo, error) {
 	// get item info starts
 	itemTableJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/item_table.json")
 
-	itemTableJsonResult, err := c.AkAbFs.NewJsonObject(itemTableJsonPath)
+	itemTableJsonResult, err := c.AkAbFs.NewJsonObject(ctx, itemTableJsonPath)
 	if err != nil {
 		return IconInfo{}, err
 	}
@@ -165,7 +143,7 @@ func (c *StaticItemController) getItemFromItemTable(itemId string, staticProdVer
 		iconHubAbJsonPath = staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/arts/items/icons/icon_hub.ab.json"
 		iconHubKey = "icon_hub"
 	}
-	iconHubAbJson, err := c.AkAbFs.NewJsonObject(iconHubAbJsonPath)
+	iconHubAbJson, err := c.AkAbFs.NewJsonObject(ctx, iconHubAbJsonPath)
 	if err != nil {
 		return IconInfo{}, err
 	}
@@ -182,15 +160,12 @@ func (c *StaticItemController) getItemFromItemTable(itemId string, staticProdVer
 	iconHubItemPath := iconHubAbJson.Get(iconHubKey + "._values." + strconv.Itoa(iconHubIndex)).Str
 	itemPath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/%s.png", strings.ToLower(iconHubItemPath))
 
-	itemObject, err := c.AkAbFs.NewObject(itemPath)
+	itemObject, err := c.AkAbFs.NewObject(ctx, itemPath)
 	if err != nil {
 		return IconInfo{}, err
 	}
 
-	cancelContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	itemObjectIoReader, err := itemObject.Open(cancelContext)
+	itemObjectIoReader, err := itemObject.Open(ctx)
 	if err != nil {
 		return IconInfo{}, err
 	}
@@ -199,7 +174,7 @@ func (c *StaticItemController) getItemFromItemTable(itemId string, staticProdVer
 	// get offset defined in sprite?
 	rootPackingTag := iconHubAbJson.Get("icon_hub._rootPackingTag").Str
 
-	offset, err := c.getItemOffsetByRootPackingTag(iconId, rootPackingTag, staticProdVersionPath)
+	offset, err := c.getItemOffsetByRootPackingTag(ctx, iconId, rootPackingTag, staticProdVersionPath)
 
 	if err != nil {
 		return IconInfo{}, err
@@ -220,11 +195,11 @@ func (c *StaticItemController) getItemFromItemTable(itemId string, staticProdVer
 	}, nil
 }
 
-func (c *StaticItemController) getFurniFromBuildingData(itemId string, staticProdVersionPath string) (IconInfo, error) {
+func (c *StaticItemController) getFurniFromBuildingData(ctx context.Context, itemId string, staticProdVersionPath string) (IconInfo, error) {
 	// get building data
 	buildingDataJsonPath := fmt.Sprintf("%s/%s", staticProdVersionPath, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata/excel/building_data.json")
 
-	buildingDataJsonResult, err := c.AkAbFs.NewJsonObject(buildingDataJsonPath)
+	buildingDataJsonResult, err := c.AkAbFs.NewJsonObject(ctx, buildingDataJsonPath)
 
 	if err != nil {
 		return IconInfo{}, err
@@ -254,7 +229,7 @@ func (c *StaticItemController) getFurniFromBuildingData(itemId string, staticPro
 	// load mapping from furni icon hub
 	furniHubAbJsonPath := staticProdVersionPath + "/unpacked_assetbundle/assets/torappu/dynamicassets/arts/ui/furnitureicons/furni_icon_hub.ab.json"
 
-	furniHubAbJson, err := c.AkAbFs.NewJsonObject(furniHubAbJsonPath)
+	furniHubAbJson, err := c.AkAbFs.NewJsonObject(ctx, furniHubAbJsonPath)
 	if err != nil {
 		return IconInfo{}, err
 	}
@@ -271,14 +246,12 @@ func (c *StaticItemController) getFurniFromBuildingData(itemId string, staticPro
 	iconHubItemPath := furniHubAbJson.Get("furni_icon_hub._values." + strconv.Itoa(iconHubIndex)).Str
 	itemPath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/%s.png", strings.ToLower(iconHubItemPath))
 
-	itemObject, err := c.AkAbFs.NewObject(itemPath)
+	itemObject, err := c.AkAbFs.NewObject(ctx, itemPath)
 	if err != nil {
 		return IconInfo{}, err
 	}
 
-	cancelContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	itemObjectIoReader, err := itemObject.Open(cancelContext)
+	itemObjectIoReader, err := itemObject.Open(ctx)
 	if err != nil {
 		return IconInfo{}, err
 	}
@@ -312,14 +285,14 @@ func (c *StaticItemController) getFurniFromBuildingData(itemId string, staticPro
 	}, nil
 }
 
-func (c *StaticItemController) itemImage(itemId string, staticProdVersionPath string) (*image.RGBA, error) {
+func (c *StaticItemController) itemImage(ctx context.Context, itemId string, staticProdVersionPath string) (*image.RGBA, error) {
 	var err error
 	var iconInfo IconInfo
 
 	if strings.HasPrefix(itemId, "furni_") {
-		iconInfo, err = c.getFurniFromBuildingData(itemId, staticProdVersionPath)
+		iconInfo, err = c.getFurniFromBuildingData(ctx, itemId, staticProdVersionPath)
 	} else {
-		iconInfo, err = c.getItemFromItemTable(itemId, staticProdVersionPath)
+		iconInfo, err = c.getItemFromItemTable(ctx, itemId, staticProdVersionPath)
 	}
 
 	if err != nil {
@@ -357,20 +330,20 @@ func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
 
 	itemId := ctx.Params("itemId")
 
-	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.Params("server"), ctx.Params("platform"))
+	staticProdVersionPath := c.StaticVersionService.StaticProdVersionPath(ctx.UserContext(), ctx.Params("server"), ctx.Params("platform"))
 
 	// get png image
-	itemImageWithBackGround, err := c.itemImage(itemId, staticProdVersionPath)
+	itemImageWithBackGround, err := c.itemImage(ctx.UserContext(), itemId, staticProdVersionPath)
 	if err != nil {
 		return err
 	}
 	imageBuffer := new(bytes.Buffer)
-	defer imageBuffer.Reset()
 	png.Encode(imageBuffer, itemImageWithBackGround)
 	itemImageWithBackGround = nil
 
 	// convert to webp
 	itemWebpImage := bimg.NewImage(imageBuffer.Bytes())
+	imageBuffer.Reset()
 	itemWebpImageBytes, err := itemWebpImage.Process(bimg.Options{
 		Quality: 75,
 		Type:    bimg.WEBP,
