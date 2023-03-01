@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"math"
 	"regexp"
+	"runtime"
 	"strconv"
 	"sync"
 
@@ -121,6 +122,8 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 	ctx.Set("X-Rows", strconv.Itoa(numOfItems/numOfRowsAndCols+1))
 	ctx.Set("X-Item-Ids", string(itemIdsJson))
 	ctx.Set("Access-Control-Expose-Headers", "X-Dimension,X-Cols,X-Rows,X-Item-Ids")
+
+	defer runtime.GC()
 
 	return ctx.Send(spriteItemWebpImageBytes)
 }

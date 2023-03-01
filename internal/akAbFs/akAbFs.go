@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"os"
 	pathLib "path"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -225,7 +226,8 @@ func (akAbFs *AkAbFs) NewObject(ctx context.Context, path string) (fs.Object, er
 
 	// 5% probability of clearing directory cache
 	if rand.Intn(100) < 5 {
-		akAbFs.googleDriveFs.Features().DirCacheFlush()
+		defer akAbFs.googleDriveFs.Features().DirCacheFlush()
+		defer runtime.GC()
 	}
 
 	return googleDriveNewObject, nil

@@ -8,6 +8,7 @@ import (
 	"image/draw"
 	"image/png"
 	"math"
+	"runtime"
 	"strconv"
 	"sync"
 
@@ -50,9 +51,7 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 		go func(index int, enemyId string) {
 			defer wg.Done()
 			semaphore <- struct{}{} // acquire semaphore
-			enemyImage, err := c.enemyImage(ctx.UserContext(), enemyId, staticProdVersionPath)
-			enemyAvatarImageChannel[index] = enemyImage
-			enemyAvatarErrorChannel[index] = err
+			enemyAvatarImageChannel[index], enemyAvatarErrorChannel[index] = c.enemyImage(ctx.UserContext(), enemyId, staticProdVersionPath)
 			<-semaphore // release semaphore
 		}(index, enemyId)
 	}
@@ -114,6 +113,8 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 	ctx.Set("X-Rows", strconv.Itoa(numOfItems/numOfRowsAndCols+1))
 	ctx.Set("X-Item-Ids", string(itemIdsJson))
 	ctx.Set("Access-Control-Expose-Headers", "X-Dimension,X-Cols,X-Rows,X-Item-Ids")
+
+	defer runtime.GC()
 
 	return ctx.Send(spriteItemWebpImageBytes)
 }
