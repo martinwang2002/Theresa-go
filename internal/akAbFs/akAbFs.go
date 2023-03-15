@@ -267,6 +267,47 @@ func (akAbFs *AkAbFs) NewJsonObject(ctx context.Context, path string) (*gjson.Re
 	return &gjsonResult, nil
 }
 
+func (akAbFs *AkAbFs) getAssetFolders(ctx context.Context, server string, platform string, resVersion string) ([]string, error) {
+	data, err := akAbFs.CacheClient.GetBytes(ctx, "getAssetFolders"+server+platform+resVersion)
+	if err == nil {
+		var buffer bytes.Buffer
+		buffer.Write(data)
+		var folders []string
+		err = gob.NewDecoder(&buffer).Decode(&folders)
+		if err == nil {
+			return folders, nil
+		}
+	}
+
+	// list dirs
+	dirEntries, err := akAbFs.List(ctx, fmt.Sprintf("AK/%s/%s/assets", server, platform))
+
+	if err != nil {
+		return nil, err
+	}
+
+	folders := make([]string, 0)
+	for index, dirEntry := range dirEntries {
+		if dirEntry.IsDir && dirEntry.Name != resVersion && dirEntry.Name[:5] != "_next" {
+			// do sampling, otherwise it takes too long to respond
+			if index%5 == 0 && index < 25 {
+				folders = append(folders, dirEntry.Name)
+			}
+		}
+	}
+
+	// sort folders in decending order
+	sort.Sort(sort.Reverse(sort.StringSlice(folders)))
+
+	// set cache
+	var buffer bytes.Buffer
+	err = gob.NewEncoder(&buffer).Encode(folders)
+	if err == nil {
+		akAbFs.CacheClient.SetBytes(ctx, "getAssetFolders"+server+platform+resVersion, buffer.Bytes())
+	}
+	return folders, nil
+}
+
 func (akAbFs *AkAbFs) NewObjectSmart(ctx context.Context, server string, platform string, path string) (fs.Object, error) {
 	path = strings.ReplaceAll(path, "//", "/")
 	// remove starting /
@@ -291,23 +332,10 @@ func (akAbFs *AkAbFs) NewObjectSmart(ctx context.Context, server string, platfor
 	}
 
 	// load from google drive
-
-	// list dirs
-	dirEntries, err := akAbFs.List(ctx, fmt.Sprintf("AK/%s/%s/assets", server, platform))
-
+	folders, err := akAbFs.getAssetFolders(ctx, server, platform, resVersion)
 	if err != nil {
 		return nil, err
 	}
-
-	folders := make([]string, 0)
-	for _, dirEntry := range dirEntries {
-		if dirEntry.IsDir && dirEntry.Name != resVersion && dirEntry.Name[:5] != "_next" {
-			folders = append(folders, dirEntry.Name)
-		}
-	}
-
-	// sort folders in decending order
-	sort.Sort(sort.Reverse(sort.StringSlice(folders)))
 
 	for _, resVersion := range folders {
 		googleDriveObjectPath := fmt.Sprintf("AK/%s/%s/assets/%s/%s", server, platform, resVersion, path)
