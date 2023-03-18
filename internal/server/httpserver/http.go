@@ -115,7 +115,14 @@ func CreateHttpServer(conf *config.Config) (*fiber.App, *AppS3, *AppStatic) {
 		// prod mode enable cache
 		// disable when envoy supports cache
 		appStatic.Use(cache.New(cache.Config{
-			Expiration:           7 * 24 * time.Hour,
+			Expiration: 7 * 24 * time.Hour,
+			ExpirationGenerator: func(ctx *fiber.Ctx, config *cache.Config) time.Duration {
+				if ctx.Response().StatusCode() == fiber.StatusOK {
+					return config.Expiration
+				} else {
+					return 0
+				}
+			},
 			CacheControl:         true,
 			Storage:              redis.New(redis.Config{URL: conf.RedisDsn}),
 			StoreResponseHeaders: true,
