@@ -18,7 +18,10 @@ func run(app *fiber.App, lc fx.Lifecycle) {
 			}
 
 			go func() {
-				app.Listener(ln)
+				err := app.Listener(ln)
+				if err != nil {
+					app.Server().Logger.Printf("Server stopped: %s", err.Error())
+				}
 			}()
 
 			return nil
