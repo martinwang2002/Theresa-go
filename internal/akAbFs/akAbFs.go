@@ -4,22 +4,21 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
-	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
-	"os"
 	pathLib "path"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
 
-	backendDrive "github.com/rclone/rclone/backend/drive"
+	_ "github.com/rclone/rclone/backend/all"
 	localDrive "github.com/rclone/rclone/backend/local"
 	"github.com/rclone/rclone/fs"
+	rcloneConfig "github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configfile"
 	"github.com/rclone/rclone/fs/config/configmap"
-	"github.com/rclone/rclone/fs/config/configstruct"
 	"github.com/tidwall/gjson"
 
 	"theresa-go/internal/config"
@@ -60,33 +59,14 @@ func GetBackgroundContext() context.Context {
 }
 
 func GetGoogleDriveFs(backgroundContext context.Context) (fs.Fs, error) {
-	config := configmap.Simple{}
-	driveOptions := new(backendDrive.Options)
-	configstruct.Set(config, driveOptions)
-	config.Set("client_id", os.Getenv("GOOGLE_DRIVE_CLIENT_ID"))
-	config.Set("client_secret", os.Getenv("GOOGLE_DRIVE_CLIENT_SECRET"))
-	config.Set("chunk_size", (8 * fs.Mebi).String())
-	configToken := map[string]interface{}{
-		"access_token":  "1",
-		"token_type":    "Bearer",
-		"refresh_token": os.Getenv("GOOGLE_DRIVE_REFRESH_TOKEN"),
-		"expiry":        "2000-01-01T01:01:01.000000Z",
-	}
-
-	out, err := json.Marshal(configToken)
+	rcloneConfig.SetConfigPath("./configs/rclone.conf")
+	configfile.Install()
+	googleDriveFs, err := fs.NewFs(backgroundContext, "GoogleDrive:/")
 	if err != nil {
 		panic(err)
 	}
-	config.Set("token", string(out))
-	config.Set("root_folder_id", os.Getenv("GOOGLE_DRIVE_ROOT_FOLDER_ID"))
 
-	fs, err := backendDrive.NewFs(backgroundContext, "GoogleDrive", "DATA/AK_AB_DATA", config)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return fs, nil
+	return googleDriveFs, nil
 }
 
 func GetLocalFs(backgroundContext context.Context) (fs.Fs, error) {
