@@ -6,6 +6,7 @@ require (
 	github.com/dgraph-io/ristretto v0.1.1
 	github.com/gofiber/fiber/v2 v2.46.0
 	github.com/gofiber/storage/redis v1.3.4
+	github.com/google/go-github/v50 v50.2.0
 	github.com/h2non/bimg v1.1.9
 	github.com/joho/godotenv v1.5.1
 	github.com/kelseyhightower/envconfig v1.4.0
@@ -28,6 +29,7 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v0.9.0 // indirect
 	github.com/Max-Sum/base32768 v0.0.0-20230304063302-18e6ce5945fd // indirect
 	github.com/Microsoft/go-winio v0.6.0 // indirect
+	github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8 // indirect
 	github.com/Unknwon/goconfig v1.0.0 // indirect
 	github.com/abbot/go-http-auth v0.4.0 // indirect
 	github.com/andybalholm/brotli v1.0.5 // indirect
@@ -36,6 +38,7 @@ require (
 	github.com/buengese/sgzip v0.1.1 // indirect
 	github.com/calebcase/tmpfile v1.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/cloudflare/circl v1.1.0 // indirect
 	github.com/colinmarc/hdfs/v2 v2.3.0 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect

@@ -17,6 +17,11 @@ type Config struct {
 
 	// redis connection url
 	RedisDsn string `required:"true" split_words:"true" default:"redis://127.0.0.1:6379/1"`
+
+	// use gamedata from github repo
+	UseGithubGamedata  bool   `split_words:"true"`
+	GithubToken        string `split_words:"true"`
+	GithubGamedataRepo string `split_words:"true"`
 }
 
 func Parse() (*Config, error) {

@@ -13,12 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	_ "github.com/rclone/rclone/backend/all"
-	localDrive "github.com/rclone/rclone/backend/local"
 	"github.com/rclone/rclone/fs"
-	rcloneConfig "github.com/rclone/rclone/fs/config"
-	"github.com/rclone/rclone/fs/config/configfile"
-	"github.com/rclone/rclone/fs/config/configmap"
 	"github.com/tidwall/gjson"
 
 	"theresa-go/internal/config"
@@ -26,9 +21,11 @@ import (
 
 type AkAbFs struct {
 	akAbFsContext context.Context
-	googleDriveFs fs.Fs
+	useGithub     bool
+	githubClient  *GithubClient
+	remoteFs      fs.Fs
 	localFs       fs.Fs
-	CacheClient   *CacheClient
+	CacheClient   *CacheClient // this is used by other packages for flushing cache
 	mu            sync.Mutex
 }
 
@@ -36,10 +33,14 @@ func NewAkAbFs(conf *config.Config) *AkAbFs {
 	cacheClient := NewCacheClient(conf)
 
 	akAbFsContext := GetBackgroundContext()
-	googleDriveFs, err := GetGoogleDriveFs(akAbFsContext)
+
+	githubClient := GetGithubClient(akAbFsContext, conf)
+
+	remoteFs, err := GetRemoteFs(akAbFsContext)
 	if err != nil {
 		panic(err)
 	}
+
 	localFs, err := GetLocalFs(akAbFsContext)
 	if err != nil {
 		panic(err)
@@ -48,9 +49,10 @@ func NewAkAbFs(conf *config.Config) *AkAbFs {
 	return &AkAbFs{
 		akAbFsContext: akAbFsContext,
 		CacheClient:   cacheClient,
-		googleDriveFs: googleDriveFs,
+		githubClient:  githubClient,
 		localFs:       localFs,
 		mu:            sync.Mutex{},
+		remoteFs:      remoteFs,
 	}
 }
 
@@ -58,43 +60,17 @@ func GetBackgroundContext() context.Context {
 	return context.Background()
 }
 
-func GetGoogleDriveFs(backgroundContext context.Context) (fs.Fs, error) {
-	rcloneConfig.SetConfigPath("./configs/rclone.conf")
-	configfile.Install()
-	googleDriveFs, err := fs.NewFs(backgroundContext, "GoogleDrive:/")
-	if err != nil {
-		panic(err)
-	}
-
-	return googleDriveFs, nil
-}
-
-func GetLocalFs(backgroundContext context.Context) (fs.Fs, error) {
-	config := configmap.Simple{}
-
-	fs, err := localDrive.NewFs(backgroundContext, "Local", "./AK_AB_DATA/", config)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return fs, nil
-}
-
 func (akAbFs *AkAbFs) list(path string) (fs.DirEntries, error) {
-	googleDriveFs := akAbFs.googleDriveFs
-	localFs := akAbFs.localFs
+	localEntries, localErr := akAbFs.localFs.List(akAbFs.akAbFsContext, path)
+	remoteEntries, remoteError := akAbFs.remoteFs.List(akAbFs.akAbFsContext, path)
 
-	localEntries, localErr := localFs.List(akAbFs.akAbFsContext, path)
-	googleDriveEntries, googleDriveErr := googleDriveFs.List(akAbFs.akAbFsContext, path)
-
-	// Raise error if both errors are not nil for listing in local drive and google drive
-	if localErr != nil && googleDriveErr != nil {
-		// return googleDriveErr since I guarentee that google drive is the backup file service
-		return nil, googleDriveErr
+	// Raise error if both errors are not nil for listing in local drive and remote drive
+	if localErr != nil && remoteError != nil {
+		// return remoteError since I guarentee that remote drive is the backup file service
+		return nil, remoteError
 	}
 
-	allEntries := append(localEntries, googleDriveEntries...)
+	allEntries := append(localEntries, remoteEntries...)
 
 	// unique entries
 	directories := make(map[string]bool)
@@ -176,22 +152,6 @@ func (akAbFs *AkAbFs) List(ctx context.Context, path string) (JsonDirEntries, er
 	return jsonEntries, nil
 }
 
-func (akAbFs *AkAbFs) localNewObject(ctx context.Context, path string) (fs.Object, error) {
-	localNewObject, err := akAbFs.localFs.NewObject(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-	return localNewObject, nil
-}
-
-func (akAbFs *AkAbFs) googleDriveNewObject(ctx context.Context, path string) (fs.Object, error) {
-	googleDriveNewObject, err := akAbFs.googleDriveFs.NewObject(ctx, path)
-	if err != nil {
-		return nil, err
-	}
-	return googleDriveNewObject, nil
-}
-
 func (akAbFs *AkAbFs) NewObject(ctx context.Context, path string) (fs.Object, error) {
 	localNewObject, err := akAbFs.localNewObject(ctx, path)
 
@@ -199,18 +159,25 @@ func (akAbFs *AkAbFs) NewObject(ctx context.Context, path string) (fs.Object, er
 		return localNewObject, nil
 	}
 
-	googleDriveNewObject, err := akAbFs.googleDriveNewObject(ctx, path)
+	if akAbFs.githubClient.useGithubGamedata && strings.Contains(path, "gamedata") {
+		githubNewObject, err := akAbFs.githubNewObject(ctx, path)
+		if err == nil {
+			return githubNewObject, nil
+		}
+	}
+
+	remoteNewObject, err := akAbFs.remoteNewObject(ctx, path)
 	if err != nil {
 		return nil, err
 	}
 
 	// 5% probability of clearing directory cache
 	if rand.Intn(100) < 5 {
-		defer akAbFs.googleDriveFs.Features().DirCacheFlush()
+		defer akAbFs.remoteFs.Features().DirCacheFlush()
 		defer runtime.GC()
 	}
 
-	return googleDriveNewObject, nil
+	return remoteNewObject, nil
 }
 
 func (akAbFs *AkAbFs) NewJsonObject(ctx context.Context, path string) (*gjson.Result, error) {
@@ -311,18 +278,25 @@ func (akAbFs *AkAbFs) NewObjectSmart(ctx context.Context, server string, platfor
 		return localNewObject, nil
 	}
 
-	// load from google drive
+	if akAbFs.githubClient.useGithubGamedata && strings.Contains(path, "gamedata") {
+		githubNewObject, err := akAbFs.githubNewObject(ctx, path)
+		if err == nil {
+			return githubNewObject, nil
+		}
+	}
+
+	// load from remote drive
 	folders, err := akAbFs.getAssetFolders(ctx, server, platform, resVersion)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, resVersion := range folders {
-		googleDriveObjectPath := fmt.Sprintf("AK/%s/%s/assets/%s/%s", server, platform, resVersion, path)
+		remoteObjectPath := fmt.Sprintf("AK/%s/%s/assets/%s/%s", server, platform, resVersion, path)
 
-		googleDriveNewObject, err := akAbFs.googleDriveNewObject(ctx, googleDriveObjectPath)
+		remoteNewObject, err := akAbFs.remoteNewObject(ctx, remoteObjectPath)
 		if err == nil {
-			return googleDriveNewObject, nil
+			return remoteNewObject, nil
 		}
 	}
 	return nil, fmt.Errorf("object not found")
