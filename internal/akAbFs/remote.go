@@ -7,12 +7,14 @@ import (
 	"github.com/rclone/rclone/fs"
 	rcloneConfig "github.com/rclone/rclone/fs/config"
 	"github.com/rclone/rclone/fs/config/configfile"
+
+	"theresa-go/internal/config"
 )
 
-func GetRemoteFs(backgroundContext context.Context) (fs.Fs, error) {
+func GetRemoteFs(backgroundContext context.Context, conf *config.Config) (fs.Fs, error) {
 	rcloneConfig.SetConfigPath("./configs/rclone.conf")
 	configfile.Install()
-	rcloneFs, err := fs.NewFs(backgroundContext, "GoogleDrive:/")
+	rcloneFs, err := fs.NewFs(backgroundContext, conf.AkAbFsRemoteName)
 	if err != nil {
 		panic(err)
 	}

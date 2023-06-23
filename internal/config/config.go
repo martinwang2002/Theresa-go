@@ -22,6 +22,9 @@ type Config struct {
 	UseGithubGamedata  bool   `split_words:"true"`
 	GithubToken        string `split_words:"true"`
 	GithubGamedataRepo string `split_words:"true"`
+
+	// ak ab fs remote name
+	AkAbFsRemoteName string `split_words:"true" default:"remote:"`
 }
 
 func Parse() (*Config, error) {

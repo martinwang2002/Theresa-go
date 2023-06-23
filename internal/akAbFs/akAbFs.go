@@ -36,7 +36,7 @@ func NewAkAbFs(conf *config.Config) *AkAbFs {
 
 	githubClient := GetGithubClient(akAbFsContext, conf)
 
-	remoteFs, err := GetRemoteFs(akAbFsContext)
+	remoteFs, err := GetRemoteFs(akAbFsContext, conf)
 	if err != nil {
 		panic(err)
 	}
