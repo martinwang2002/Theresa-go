@@ -70,8 +70,7 @@ func (o GithubObject) Open(ctx context.Context, options ...fs.OpenOption) (io.Re
 
 func (akAbFs *AkAbFs) githubNewObject(ctx context.Context, path string) (fs.Object, error) {
 	// get gamedata file from Kengxxiao
-	gitPath := strings.Replace(path, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata", "", 1)
-	fmt.Println(gitPath, "git")
+	gitPath := strings.Split(path, "unpacked_assetbundle/assets/torappu/dynamicassets/gamedata")[1]
 
 	fileContent, _, _, err := akAbFs.githubClient.client.Repositories.DownloadContentsWithMeta(
 		ctx,
