@@ -39,7 +39,9 @@ func logCompleted(c *fiber.Ctx, start time.Time) {
 	ReqLogger(c).Info().
 		Dict("http", zerolog.Dict().
 			Dict("request", zerolog.Dict().
-				Str("method", c.Method()),
+				Str("method", c.Method()).
+				Str("path", string(c.Request().URI().RequestURI())).
+				Str("host", string(c.Context().Host())),
 			).
 			Dict("response", zerolog.Dict().
 				Int("statusCode", c.Response().StatusCode()).
@@ -48,10 +50,6 @@ func logCompleted(c *fiber.Ctx, start time.Time) {
 					Int("bytesSent", len(c.Response().Body())),
 				),
 			),
-		).
-		Dict("url", zerolog.Dict().
-			Str("path", string(c.Request().URI().RequestURI())).
-			Str("host", string(c.Context().Host())),
 		).
 		Float64("responseTimeInMs", float64(time.Since(start).Nanoseconds())/1e6).
 		Msg("[" + strconv.Itoa(c.Response().StatusCode()) + "] " + string(c.Context().Host()) + string(c.Request().URI().RequestURI()))

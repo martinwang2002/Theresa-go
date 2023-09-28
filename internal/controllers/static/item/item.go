@@ -323,7 +323,7 @@ func (c *StaticItemController) itemImage(ctx context.Context, itemId string, sta
 		draw.Over,
 	)
 
-	return spriteItemImage, err
+	return spriteItemImage, nil
 }
 
 func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
@@ -339,7 +339,6 @@ func (c *StaticItemController) ItemImage(ctx *fiber.Ctx) error {
 	}
 	imageBuffer := new(bytes.Buffer)
 	png.Encode(imageBuffer, itemImageWithBackGround)
-	itemImageWithBackGround = nil
 
 	// convert to webp
 	itemWebpImage := bimg.NewImage(imageBuffer.Bytes())

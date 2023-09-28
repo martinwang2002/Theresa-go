@@ -38,53 +38,58 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 	numOfItems := len(enemyIds)
 	numOfRowsAndCols := int(math.Ceil(math.Sqrt(float64(numOfItems))))
 
-	// generate all enemy avatars
-	var wg sync.WaitGroup
-	max := 10 // wait group concurrency limit
-	semaphore := make(chan struct{}, max)
-	wg.Add(len(enemyIds))
-
-	enemyAvatarImageChannel := make([]image.Image, numOfItems)
-	enemyAvatarErrorChannel := make([]error, numOfItems)
-
-	for index, enemyId := range enemyIds {
-		go func(index int, enemyId string) {
-			defer wg.Done()
-			semaphore <- struct{}{} // acquire semaphore
-			enemyAvatarImageChannel[index], enemyAvatarErrorChannel[index] = c.enemyImage(ctx.UserContext(), enemyId, staticProdVersionPath)
-			<-semaphore // release semaphore
-		}(index, enemyId)
+	// get enemy avatar image in parallel
+	type ImageChannel struct {
+		Image image.Image
+		Index int
+		Err   error
 	}
-	wg.Wait()
+
+	enemyAvatarImageChannel := make(chan ImageChannel, 3)
+	var wg sync.WaitGroup
+	wg.Add(numOfItems)
+
+	for index := range enemyIds {
+		go func(index int) {
+			defer wg.Done()
+			enemyAvatarImage, err := c.enemyImage(ctx.UserContext(), enemyIds[index], staticProdVersionPath)
+			enemyAvatarImageChannel <- ImageChannel{
+				Image: enemyAvatarImage,
+				Index: index,
+				Err:   err,
+			}
+		}(index)
+	}
 
 	spriteImageDimension := 158
 	spriteEmptyImageRGBA := image.NewRGBA(image.Rect(0, 0, numOfRowsAndCols*spriteImageDimension, (int(numOfItems/numOfRowsAndCols)+1)*spriteImageDimension))
 
-	for index := range enemyIds {
+	for range enemyIds {
+		imageChannel := <-enemyAvatarImageChannel
+		index := imageChannel.Index
 		row := index / numOfRowsAndCols
 		col := index % numOfRowsAndCols
 
-		if enemyAvatarErrorChannel[index] != nil {
-			return enemyAvatarErrorChannel[index]
+		if imageChannel.Err != nil {
+			return imageChannel.Err
 		}
 
 		draw.Draw(
 			spriteEmptyImageRGBA,
 			image.Rect(col*spriteImageDimension, row*spriteImageDimension, (col+1)*spriteImageDimension, (row+1)*spriteImageDimension),
-			enemyAvatarImageChannel[index],
+			imageChannel.Image,
 			image.Point{0, 0},
 			draw.Src,
 		)
 	}
-	enemyAvatarImageChannel = nil
-	enemyAvatarErrorChannel = nil
+	wg.Wait()
+	close(enemyAvatarImageChannel)
 
 	spritePngImageBuffer := new(bytes.Buffer)
 	encoder := png.Encoder{
 		CompressionLevel: png.BestSpeed,
 	}
 	err = encoder.Encode(spritePngImageBuffer, spriteEmptyImageRGBA)
-	spriteEmptyImageRGBA = nil
 
 	if err != nil {
 		return err

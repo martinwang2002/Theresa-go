@@ -383,6 +383,8 @@ func (c *StaticMap3DController) meshConfig(ctx *fiber.Ctx, staticProdVersionPath
 											break
 										}
 									}
+
+									fmt.Println(texPathId, texturePath)
 									texturePathUri, err := ctx.GetRouteURL("map3d.material", fiber.Map{
 										"server":   ctx.Params("server"),
 										"platform": ctx.Params("platform"),
@@ -661,9 +663,9 @@ func (c *StaticMap3DController) Map3DRootSceneObj(ctx *fiber.Ctx) error {
 
 	splittedLowerLevelId := strings.Split(lowerLevelId, "/")
 
-	mapPreviewPath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/scenes/%s/%s.ab/1_Mesh_Combined Mesh (root_ scene).obj", lowerLevelId, splittedLowerLevelId[len(splittedLowerLevelId)-1])
+	meshPath := staticProdVersionPath + fmt.Sprintf("/unpacked_assetbundle/assets/torappu/dynamicassets/scenes/%s/%s.ab/1_Mesh_Combined Mesh (root_ scene).obj", lowerLevelId, splittedLowerLevelId[len(splittedLowerLevelId)-1])
 
-	newObject, err := c.AkAbFs.NewObject(ctx.UserContext(), mapPreviewPath)
+	newObject, err := c.AkAbFs.NewObject(ctx.UserContext(), meshPath)
 	if err != nil {
 		return ctx.SendStatus(fiber.StatusNotFound)
 	}

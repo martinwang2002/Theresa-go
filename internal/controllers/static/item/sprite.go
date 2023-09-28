@@ -74,7 +74,7 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 		col := index % numOfRowsAndCols
 
 		if itemImageErrorChannel[index] != nil {
-			return itemImageErrorChannel[index]
+			return fmt.Errorf("error when processing item id:%s item image: %w", filtereditemIds[index], itemImageErrorChannel[index])
 		}
 
 		draw.Draw(
@@ -93,7 +93,6 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 		CompressionLevel: png.BestSpeed,
 	}
 	err = encoder.Encode(spritePngImageBuffer, spriteEmptyImageRGBA)
-	spriteEmptyImageRGBA = nil
 
 	if err != nil {
 		return err

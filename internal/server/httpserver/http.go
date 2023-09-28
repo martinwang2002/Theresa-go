@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"runtime"
@@ -12,10 +13,11 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/rs/zerolog"
 
-	"github.com/gofiber/fiber/v2/middleware/cache"
-	"github.com/gofiber/storage/redis"
 	"theresa-go/internal/config"
 	"theresa-go/internal/middlewares/logger"
+
+	"github.com/gofiber/fiber/v2/middleware/cache"
+	"github.com/gofiber/storage/redis"
 )
 
 type (
@@ -33,6 +35,51 @@ type AppStatic struct {
 }
 
 func CreateHttpServer(conf *config.Config) (*fiber.App, *AppS3, *AppStatic) {
+	log := zerolog.New(os.Stdout)
+
+	var fiberConfig fiber.Config = fiber.Config{
+		// Override default error handler
+		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
+			// Status code defaults to 500
+			code := fiber.StatusInternalServerError
+
+			// Retrieve the custom status code if it's an fiber.*Error
+			var e *fiber.Error
+			if errors.As(err, &e) {
+				code = e.Code
+			}
+
+			log.Error().
+				Err(err).
+				Dict("http", zerolog.Dict().
+					Dict("request", zerolog.Dict().
+						Str("method", ctx.Method()).
+						Str("path", string(ctx.Request().URI().RequestURI())).
+						Str("host", string(ctx.Context().Host())),
+					).
+					Dict("response", zerolog.Dict().
+						Int("statusCode", ctx.Response().StatusCode()).
+						Dict("body", zerolog.Dict().
+							Int("bytes", ctx.Response().Header.ContentLength()).
+							Int("bytesSent", len(ctx.Response().Body())),
+						),
+					),
+				).
+				Dict("error", zerolog.Dict().
+					Str("message", err.Error()),
+				).
+				Msgf("%s %s", ctx.Method(), ctx.Path())
+
+			return ctx.Status(code).JSON(fiber.Map{
+				"http":  fiber.Map{"statusCode": code, "message": "Internal Server Error"},
+				"error": fiber.Map{"message": err.Error()},
+			})
+		},
+		DisableKeepalive: true,
+		ReadTimeout:      1 * time.Minute,
+		WriteTimeout:     1 * time.Minute,
+	}
+
 	// Hosts
 	SubdomainFibers := map[string]*SubdomainFiber{}
 
@@ -40,7 +87,7 @@ func CreateHttpServer(conf *config.Config) (*fiber.App, *AppS3, *AppStatic) {
 	// Website
 	//---------
 
-	appS3 := fiber.New()
+	appS3 := fiber.New(fiberConfig)
 
 	SubdomainFibers["s3"] = &SubdomainFiber{appS3}
 
@@ -48,9 +95,9 @@ func CreateHttpServer(conf *config.Config) (*fiber.App, *AppS3, *AppStatic) {
 		return ctx.SendString("This is internal site for s3.")
 	})
 
-	appStatic := fiber.New(fiber.Config{
-		CaseSensitive: true,
-	})
+	fiberConfigS3 := fiberConfig
+	fiberConfigS3.CaseSensitive = true
+	appStatic := fiber.New(fiberConfigS3)
 
 	SubdomainFibers["static"] = &SubdomainFiber{appStatic}
 
@@ -58,29 +105,8 @@ func CreateHttpServer(conf *config.Config) (*fiber.App, *AppS3, *AppStatic) {
 		return ctx.SendStatus(fiber.StatusNoContent)
 	})
 
-	log := zerolog.New(os.Stdout)
-
 	// Server
-	app := fiber.New(fiber.Config{
-		// Override default error handler
-		ErrorHandler: func(ctx *fiber.Ctx, err error) error {
-
-			// Status code defaults to 500
-			code := fiber.StatusInternalServerError
-
-			// Retrieve the custom status code if it's an fiber.*Error
-			if e, ok := err.(*fiber.Error); ok {
-				code = e.Code
-			}
-
-			log.Error().Err(err).Msgf("%s %s", ctx.Method(), ctx.Path())
-
-			return ctx.Status(code).SendString("Internal Server Error")
-		},
-		DisableKeepalive: true,
-		ReadTimeout:      1 * time.Minute,
-		WriteTimeout:     1 * time.Minute,
-	})
+	app := fiber.New(fiberConfig)
 
 	app.Use(logger.Logger(&log))
 
