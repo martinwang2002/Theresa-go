@@ -38,11 +38,11 @@ func (c *StaticItemController) enemyImage(ctx context.Context, enemyId string, s
 		return nil, err
 	}
 
-	if !enemyHandbookTableJsonResult.Get(enemyId).Exists() {
+	if !enemyHandbookTableJsonResult.Get("enemyData." + enemyId).Exists() {
 		return nil, fmt.Errorf("enemyId %s not found", enemyId)
 	}
 
-	if enemyHandbookTableJsonResult.Get(enemyId + ".hideInHandbook").Bool() {
+	if enemyHandbookTableJsonResult.Get("enemyData." + enemyId + ".hideInHandbook").Bool() {
 		return nil, fmt.Errorf("enemyId %s is hidden in handbook", enemyId)
 	}
 
@@ -109,7 +109,6 @@ func (c *StaticItemController) EnemyImage(ctx *fiber.Ctx) error {
 	if err := png.Encode(&imageBuffer, enemyImage); err != nil {
 		return err
 	}
-	enemyImage = nil
 
 	// convert to webp
 	itemWebpImage := bimg.NewImage(imageBuffer.Bytes())

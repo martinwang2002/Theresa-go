@@ -25,7 +25,7 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 		return err
 	}
 
-	enemyIdsInGjson := enemyHandbookTableJsonResult.Get("@values").Array()
+	enemyIdsInGjson := enemyHandbookTableJsonResult.Get("enemyData|@values").Array()
 	enemyIds := make([]string, 0)
 	for _, enemyIdInGjson := range enemyIdsInGjson {
 		// if hide in handbook is true,
@@ -34,7 +34,6 @@ func (c *StaticItemController) Sprite(ctx *fiber.Ctx) error {
 			enemyIds = append(enemyIds, enemyIdInGjson.Get("enemyId").Str)
 		}
 	}
-
 	numOfItems := len(enemyIds)
 	numOfRowsAndCols := int(math.Ceil(math.Sqrt(float64(numOfItems))))
 
