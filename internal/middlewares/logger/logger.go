@@ -22,7 +22,7 @@ func Logger(l *zerolog.Logger) func(*fiber.Ctx) error {
 	}
 }
 
-const loggerKey = "json-logger"
+const loggerKey = "zerolog-json-logger"
 
 func ReqLogger(c *fiber.Ctx) *zerolog.Logger {
 	if logger, ok := c.Locals(loggerKey).(*zerolog.Logger); ok {

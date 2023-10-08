@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"theresa-go/internal/akAbFs"
 )
 
@@ -56,6 +57,8 @@ func (s *AkVersionService) LatestVersion(ctx context.Context, server string, pla
 	if err == nil {
 		if !bytes.Equal(prevVersionFileBytes, versionFileBytes) {
 			s.AkAbFs.CacheClient.Flush(ctx)
+			log.Info().Msg("Flush cache")
+
 			setCache()
 		}
 	} else {
