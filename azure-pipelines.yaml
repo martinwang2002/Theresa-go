@@ -4,8 +4,8 @@ trigger:
   - master
 
 variables:
-  registry: us-central1-docker.pkg.dev
-  repository: theresa-wiki/theresa-wiki-docker-registry/theresa-go
+  registry: cr.theresa.wiki
+  repository: theresa-wiki/theresa-go
 
 stages:
   - stage: Build
@@ -41,7 +41,7 @@ stages:
             displayName: Docker login
             inputs:
               command: login
-              containerRegistry: GCP
+              containerRegistry: cr.theresa.wiki
           - task: Bash@3
             displayName: Build and Push image
             inputs:
