@@ -54,6 +54,7 @@ stages:
                 docker buildx build \
                   --cache-from=type=local,src=$(Pipeline.Workspace)/.docker \
                   --cache-to=type=local,dest=$(Pipeline.Workspace)/.docker_new,mode=max \
+                  --platform linux/amd64,linux/arm64 \
                   --tag $(registry)/$(repository):$(Build.SourceBranchName)-$(GIT_HASH) \
                   --tag $(registry)/$(repository):latest \
                   --file $(Build.SourcesDirectory)/Dockerfile \
