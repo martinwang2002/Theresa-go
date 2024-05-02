@@ -40,6 +40,7 @@ type Offset struct {
 func (c *StaticItemController) getItemOffsetByRootPackingTag(ctx context.Context, iconId string, rootPackingTag string, staticProdVersionPath string) (Offset, error) {
 	var offset Offset
 
+	iconId = strings.ToLower(iconId)
 	// find in sprite folder
 	spritesFolderItems, err := c.AkAbFs.List(ctx, staticProdVersionPath+"/unpacked_assetbundle/assets/torappu/dynamicassets/spritepack")
 	if err != nil {
@@ -91,7 +92,7 @@ func (c *StaticItemController) getItemOffsetByRootPackingTag(ctx context.Context
 
 type IconInfo struct {
 	ItemSpriteBackgroundName string
-	Rarity                   int
+	Rarity                   string
 	Offset                   Offset
 	ItemImage                *image.Image
 }
@@ -126,7 +127,8 @@ func (c *StaticItemController) getItemFromItemTable(ctx context.Context, itemId 
 		return IconInfo{}, fmt.Errorf("item table json does not contain item %s rarity", itemId)
 	}
 
-	rarity := item["rarity"].Int() + 1 // rarity in item has offset of 1
+	rarity := string(item["rarity"].String()[5]) // format TIER_X
+
 	iconId := item["iconId"].String()
 	itemType := item["itemType"].String()
 	// get item info ends
@@ -189,7 +191,7 @@ func (c *StaticItemController) getItemFromItemTable(ctx context.Context, itemId 
 
 	return IconInfo{
 		ItemSpriteBackgroundName: itemSpriteBackgroundName,
-		Rarity:                   int(rarity),
+		Rarity:                   rarity,
 		Offset:                   offset,
 		ItemImage:                &itemImage,
 	}, nil
@@ -221,7 +223,7 @@ func (c *StaticItemController) getFurniFromBuildingData(ctx context.Context, ite
 		return IconInfo{}, err
 	}
 
-	rarity := item["rarity"].Int()
+	rarity := string(item["rarity"].String())
 	iconId := item["iconId"].String()
 	// get item info ends
 
@@ -276,7 +278,7 @@ func (c *StaticItemController) getFurniFromBuildingData(ctx context.Context, ite
 
 	return IconInfo{
 		ItemSpriteBackgroundName: itemSpriteBackgroundName,
-		Rarity:                   int(rarity),
+		Rarity:                   rarity,
 		Offset: Offset{
 			X: 13, // (181[image width]-153[sprite width])/2[center] - 1[offset]
 			Y: 30, // (181[image width]-85[sprite width])/2[center] - 1[offset] - 3[extra]
@@ -300,7 +302,7 @@ func (c *StaticItemController) itemImage(ctx context.Context, itemId string, sta
 	}
 
 	// get rarity image
-	rarityString := strconv.Itoa(int(iconInfo.Rarity))
+	rarityString := iconInfo.Rarity
 
 	spriteItemRXImagePath := fmt.Sprintf("./resources/item/%s%s.png", iconInfo.ItemSpriteBackgroundName, rarityString)
 
